@@ -55,7 +55,7 @@ public class UsuarioService {
         usuario.setNombres(request.getNombres());
         usuario.setCorreo(request.getCorreo());
         usuario.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        usuario.setIniciales(request.getIniciales());
+        usuario.setIniciales(inicialesDe(request.getNombres(), request.getIniciales()));
         usuario.setBloqueado(false);
         usuario.setIntentosFallidos((short) 0);
         usuario.setUserCreate(usuarioActual());
@@ -74,7 +74,9 @@ public class UsuarioService {
         usuario.setRol(rol);
         usuario.setNombres(request.getNombres());
         usuario.setCorreo(request.getCorreo());
-        usuario.setIniciales(request.getIniciales());
+        if (request.getIniciales() != null && !request.getIniciales().isBlank()) {
+            usuario.setIniciales(inicialesDe(request.getNombres(), request.getIniciales()));
+        }
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
             usuario.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         }
@@ -131,5 +133,20 @@ public class UsuarioService {
 
     private String usuarioActual() {
         return SecurityContextHolder.getContext().getAuthentication().getName();
+    }
+
+    private String inicialesDe(String nombres, String inicialesSolicitadas) {
+        if (inicialesSolicitadas != null && !inicialesSolicitadas.isBlank()) {
+            return inicialesSolicitadas.trim().toUpperCase().substring(0,
+                    Math.min(3, inicialesSolicitadas.trim().length()));
+        }
+
+        StringBuilder iniciales = new StringBuilder();
+        for (String nombre : nombres.trim().split("\\s+")) {
+            if (!nombre.isBlank() && iniciales.length() < 3) {
+                iniciales.append(nombre.charAt(0));
+            }
+        }
+        return iniciales.toString().toUpperCase();
     }
 }

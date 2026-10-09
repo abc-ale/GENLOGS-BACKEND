@@ -31,7 +31,6 @@ public class UsuarioRequest {
     @Size(min = 8, message = "La contraseña debe tener al menos 8 caracteres")
     private String password;
 
-    @NotBlank(message = "Las iniciales son obligatorias")
     @Size(max = 3)
     private String iniciales;
 }
