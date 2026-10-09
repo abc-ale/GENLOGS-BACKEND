@@ -83,13 +83,6 @@
 			<scope>runtime</scope>
 		</dependency>
 
-		<!-- Cloudinary (imágenes de producto/servicio y adjuntos de cotización) -->
-		<dependency>
-			<groupId>com.cloudinary</groupId>
-			<artifactId>cloudinary-http5</artifactId>
-			<version>2.4.0</version>
-		</dependency>
-
 		<!-- Generación de reportes: Excel (Reportes.java -> módulo Reportes de Luana) -->
 		<dependency>
 			<groupId>org.apache.poi</groupId>

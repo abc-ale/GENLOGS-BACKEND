@@ -39,7 +39,7 @@ public class OrdenCompraService {
     private final EstadoOrdenCompraRepository estadoOrdenCompraRepository;
     private final CondicionPagoRepository condicionPagoRepository;
     private final UsuarioRepository usuarioRepository;
-    private final CloudinaryService cloudinaryService;
+    private final AlmacenamientoArchivoService almacenamientoService;
 
     @Transactional(readOnly = true)
     public PaginaResponse<OrdenCompraResponse> listar(String estadoCodigo, Long idCotizacion, int page, int size) {
@@ -140,7 +140,7 @@ public class OrdenCompraService {
     public OrdenCompraResponse agregarArchivo(Long idOrdenCompra, MultipartFile archivo) {
         OrdenCompra ordenCompra = obtenerOLanzar(idOrdenCompra);
 
-        String url = cloudinaryService.subirDocumento(archivo, "genlogs/ordenes-compra");
+        String url = almacenamientoService.subirDocumento(archivo, "genlogs/ordenes-compra");
         ordenCompra.setUrlArchivo(url);
 
         Usuario usuario = usuarioActual();

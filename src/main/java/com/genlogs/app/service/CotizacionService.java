@@ -71,7 +71,7 @@ public class CotizacionService {
     private final ProductoRepository productoRepository;
     private final ServicioRepository servicioRepository;
     private final UnidadMedidaRepository unidadMedidaRepository;
-    private final CloudinaryService cloudinaryService;
+    private final AlmacenamientoArchivoService almacenamientoService;
 
     @Transactional(readOnly = true)
     public CotizacionResponse buscarPorId(Long idCotizacion) {
@@ -222,7 +222,7 @@ public class CotizacionService {
     public AdjuntoCotizacionResponse agregarAdjunto(Long idCotizacion, MultipartFile archivo) {
         Cotizacion cotizacion = obtenerOLanzar(idCotizacion);
 
-        String url = cloudinaryService.subirDocumento(archivo, "genlogs/cotizaciones/adjuntos");
+        String url = almacenamientoService.subirDocumento(archivo, "genlogs/cotizaciones/adjuntos");
 
         AdjuntoCotizacion adjunto = AdjuntoCotizacion.builder()
                 .cotizacion(cotizacion)
@@ -246,7 +246,7 @@ public class CotizacionService {
         AdjuntoCotizacion adjunto = adjuntoCotizacionRepository.findById(idAdjunto)
                 .orElseThrow(() -> new ResourceNotFoundException("Adjunto no encontrado"));
 
-        cloudinaryService.eliminarPorUrl(adjunto.getUrlArchivo(), CloudinaryService.TIPO_DOCUMENTO);
+        almacenamientoService.eliminarPorUrl(adjunto.getUrlArchivo(), AlmacenamientoArchivoService.TIPO_DOCUMENTO);
 
         adjunto.setStatus("I");
         adjunto.setUserUpdate(usuarioActual().getNombreUsuario());

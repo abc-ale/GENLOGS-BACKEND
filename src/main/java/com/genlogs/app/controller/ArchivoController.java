@@ -9,11 +9,11 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.genlogs.app.dto.ArchivoSubidoResponse;
 import com.genlogs.app.exception.BusinessException;
-import com.genlogs.app.service.CloudinaryService;
+import com.genlogs.app.service.AlmacenamientoArchivoService;
 
 import lombok.RequiredArgsConstructor;
 
-/** Sube un archivo a Cloudinary y devuelve su URL. El frontend la asocia después al producto/cotización. */
+/** Guarda un archivo en el servidor y devuelve su URL. El frontend la asocia después al producto/cotización. */
 @RestController
 @RequestMapping("/api/archivos")
 @RequiredArgsConstructor
@@ -21,7 +21,7 @@ public class ArchivoController {
 
     private static final String CARPETA = "genlogs/archivos";
 
-    private final CloudinaryService cloudinaryService;
+    private final AlmacenamientoArchivoService almacenamientoService;
 
     @PostMapping(value = "/upload", consumes = "multipart/form-data")
     public ResponseEntity<ArchivoSubidoResponse> subir(@RequestParam("file") MultipartFile file) {
@@ -31,8 +31,8 @@ public class ArchivoController {
 
         String tipo = file.getContentType() != null ? file.getContentType() : "application/octet-stream";
         String url = tipo.startsWith("image/")
-                ? cloudinaryService.subirImagen(file, CARPETA)
-                : cloudinaryService.subirDocumento(file, CARPETA);
+                ? almacenamientoService.subirImagen(file, CARPETA)
+                : almacenamientoService.subirDocumento(file, CARPETA);
 
         return ResponseEntity.ok(new ArchivoSubidoResponse(url, file.getOriginalFilename(), tipo, file.getSize()));
     }

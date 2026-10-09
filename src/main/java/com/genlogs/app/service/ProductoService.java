@@ -72,7 +72,7 @@ public class ProductoService {
     private final ProductoProveedorRepository productoProveedorRepository;
     private final ProveedorRepository proveedorRepository;
     private final MonedaRepository monedaRepository;
-    private final CloudinaryService cloudinaryService;
+    private final AlmacenamientoArchivoService almacenamientoService;
 
     // ------------------------------------------------------------------
     // CRUD de Producto
@@ -242,17 +242,17 @@ public class ProductoService {
     }
 
     // ------------------------------------------------------------------
-    // Imágenes (Cloudinary)
+    // Imágenes (almacenamiento propio)
     // ------------------------------------------------------------------
 
     @Transactional
     public void subirImagen(Long idProducto, MultipartFile archivo, boolean esPrincipal) {
         Producto producto = buscarProductoActivo(idProducto);
-        String url = cloudinaryService.subirImagen(archivo, CARPETA_IMAGENES);
+        String url = almacenamientoService.subirImagen(archivo, CARPETA_IMAGENES);
         guardarImagen(producto, url, esPrincipal, "SUBIR_IMAGEN_PRODUCTO");
     }
 
-    /** El archivo ya está en Cloudinary (lo subió /api/archivos/upload): solo se guarda la URL. */
+    /** El archivo ya está almacenado (lo subió /api/archivos/upload): solo se guarda la URL. */
     @Transactional
     public void agregarImagenPorUrl(Long idProducto, ImagenAdjuntaRequest request) {
         Producto producto = buscarProductoActivo(idProducto);
@@ -286,19 +286,19 @@ public class ProductoService {
     public void eliminarImagen(Long idProductoImagen) {
         ProductoImagen imagen = productoImagenRepository.findById(idProductoImagen)
                 .orElseThrow(() -> new ResourceNotFoundException("Imagen no encontrada"));
-        cloudinaryService.eliminarPorUrl(imagen.getUrlImagen(), CloudinaryService.TIPO_IMAGEN);
+        almacenamientoService.eliminarPorUrl(imagen.getUrlImagen(), AlmacenamientoArchivoService.TIPO_IMAGEN);
         imagen.setStatus("I");
         productoImagenRepository.save(imagen);
     }
 
     // ------------------------------------------------------------------
-    // Documentos (Cloudinary)
+    // Documentos (almacenamiento propio)
     // ------------------------------------------------------------------
 
     @Transactional
     public void subirDocumento(Long idProducto, MultipartFile archivo, TipoDocumentoProducto tipo, String nombreDocumento) {
         Producto producto = buscarProductoActivo(idProducto);
-        String url = cloudinaryService.subirDocumento(archivo, CARPETA_DOCUMENTOS);
+        String url = almacenamientoService.subirDocumento(archivo, CARPETA_DOCUMENTOS);
 
         DocumentoProducto documento = DocumentoProducto.builder()
                 .producto(producto)
@@ -311,7 +311,7 @@ public class ProductoService {
         documentoProductoRepository.save(documento);
     }
 
-    /** El archivo ya está en Cloudinary (lo subió /api/archivos/upload): solo se guarda la URL. */
+    /** El archivo ya está almacenado (lo subió /api/archivos/upload): solo se guarda la URL. */
     @Transactional
     public void agregarDocumentoPorUrl(Long idProducto, DocumentoAdjuntoRequest request) {
         Producto producto = buscarProductoActivo(idProducto);
@@ -331,7 +331,7 @@ public class ProductoService {
     public void eliminarDocumento(Long idDocumento) {
         DocumentoProducto documento = documentoProductoRepository.findById(idDocumento)
                 .orElseThrow(() -> new ResourceNotFoundException("Documento no encontrado"));
-        cloudinaryService.eliminarPorUrl(documento.getUrlDocumento(), CloudinaryService.TIPO_DOCUMENTO);
+        almacenamientoService.eliminarPorUrl(documento.getUrlDocumento(), AlmacenamientoArchivoService.TIPO_DOCUMENTO);
         documento.setStatus("I");
         documentoProductoRepository.save(documento);
     }
