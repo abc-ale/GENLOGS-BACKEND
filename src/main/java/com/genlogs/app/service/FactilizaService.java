@@ -86,11 +86,11 @@ public class FactilizaService {
     private ConsultaDocumentoResponse consultarDni(String dni) {
         JsonNode data = consultar("/dni/info/" + dni);
 
+        String nombre = primero(data, "nombres");
+        String apPaterno = primero(data, "apellido_paterno");
+        String apMaterno = primero(data, "apellido_materno");
         String nombres = primero(data, "nombre_completo");
         if (nombres == null || nombres.isBlank()) {
-            String nombre = primero(data, "nombres");
-            String apPaterno = primero(data, "apellido_paterno");
-            String apMaterno = primero(data, "apellido_materno");
             nombres = String.join(" ",
                     valorOVacio(nombre), valorOVacio(apPaterno), valorOVacio(apMaterno)).trim();
         }
@@ -99,6 +99,9 @@ public class FactilizaService {
                 .numeroDocumento(dni)
                 .tipoDocumento("DNI")
                 .razonSocial(nombres)
+                .nombres(nombre)
+                .apellidoPaterno(apPaterno)
+                .apellidoMaterno(apMaterno)
                 .direccion(null)
                 .simulado(false)
                 .build();
@@ -162,6 +165,9 @@ public class FactilizaService {
                 .numeroDocumento(numero)
                 .tipoDocumento(tipo)
                 .razonSocial(razonSocial)
+                .nombres(tipo.equals("DNI") ? "Nombre" : null)
+                .apellidoPaterno(tipo.equals("DNI") ? "Apellido" : null)
+                .apellidoMaterno(tipo.equals("DNI") ? "Prueba" : null)
                 .direccion(direccion)
                 .simulado(true)
                 .build();

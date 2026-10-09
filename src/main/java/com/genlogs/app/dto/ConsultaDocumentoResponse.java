@@ -26,6 +26,11 @@ public class ConsultaDocumentoResponse {
 
     private String direccion;
 
+    /** Solo DNI: nombres y apellidos por separado para autocompletar formularios. */
+    private String nombres;
+    private String apellidoPaterno;
+    private String apellidoMaterno;
+
     /**
      * true cuando no hay FACTILIZA_API_KEY configurada y la respuesta es
      * simulada (modo demo), para que el frontend pueda avisarlo si quiere.
