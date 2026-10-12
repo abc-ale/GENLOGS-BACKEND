@@ -1,6 +1,7 @@
 package com.genlogs.app.service;
 
 import com.genlogs.app.dto.ProveedorRequest;
+import com.genlogs.app.dto.ProveedorResponse;
 import com.genlogs.app.exception.BusinessException;
 import com.genlogs.app.exception.ResourceNotFoundException;
 import com.genlogs.app.model.Distrito;
@@ -34,7 +35,7 @@ public class ProveedorService {
      * cliente— reutiliza ese tercero en vez de duplicarlo.
      */
     @Transactional
-    public Proveedor registrar(ProveedorRequest request) {
+    public ProveedorResponse registrar(ProveedorRequest request) {
         TipoDocumento tipoDocumento = tipoDocumentoRepository.findById(request.getIdTipoDocumento())
                 .orElseThrow(() -> new ResourceNotFoundException("Tipo de documento no existe"));
 
@@ -56,23 +57,84 @@ public class ProveedorService {
         proveedor.setUserCreate(usuarioActual());
         proveedor.setProcessCreate("ALTA_PROVEEDOR");
 
-        return proveedorRepository.save(proveedor);
+        return toResponse(proveedorRepository.save(proveedor));
+    }
+
+    /**
+     * Actualiza los datos de un proveedor (PUT /api/proveedores/{id}).
+     * Igual que en clientes: los datos viven en el Tercero (compartido) y el
+     * tipo/número de documento no se pueden cambiar.
+     */
+    @Transactional
+    public ProveedorResponse actualizar(Long idProveedor, ProveedorRequest request) {
+        Proveedor proveedor = obtenerEntidad(idProveedor);
+        Tercero tercero = proveedor.getTercero();
+
+        if (!tercero.getTipoDocumento().getIdTipoDocumento().equals(request.getIdTipoDocumento())
+                || !tercero.getNumeroDocumento().equals(request.getNumeroDocumento())) {
+            throw new BusinessException("No se puede cambiar el tipo ni el número de documento de un proveedor existente");
+        }
+
+        Distrito distrito = distritoRepository.findById(request.getIdDistrito())
+                .orElseThrow(() -> new ResourceNotFoundException("Distrito no existe"));
+
+        String usuario = usuarioActual();
+        LocalDateTime ahora = LocalDateTime.now();
+
+        tercero.setRazonSocial(request.getRazonSocial());
+        tercero.setDistrito(distrito);
+        tercero.setDireccion(request.getDireccion());
+        tercero.setTelefono(request.getTelefono());
+        tercero.setCorreo(request.getCorreo());
+        tercero.setUserUpdate(usuario);
+        tercero.setProcessUpdate("EDICION_PROVEEDOR");
+        tercero.setDateUpdate(ahora);
+        terceroRepository.save(tercero);
+
+        proveedor.setUserUpdate(usuario);
+        proveedor.setProcessUpdate("EDICION_PROVEEDOR");
+        proveedor.setDateUpdate(ahora);
+        return toResponse(proveedorRepository.save(proveedor));
     }
 
     @Transactional(readOnly = true)
-    public Proveedor buscarPorId(Long idProveedor) {
+    public ProveedorResponse buscarPorId(Long idProveedor) {
+        return toResponse(obtenerEntidad(idProveedor));
+    }
+
+    private Proveedor obtenerEntidad(Long idProveedor) {
         return proveedorRepository.findById(idProveedor)
                 .orElseThrow(() -> new ResourceNotFoundException("Proveedor no encontrado"));
     }
 
+    private ProveedorResponse toResponse(Proveedor p) {
+        Tercero t = p.getTercero();
+        return ProveedorResponse.builder()
+                .idProveedor(p.getIdProveedor())
+                .idTercero(t.getIdTercero())
+                .idTipoDocumento(t.getTipoDocumento().getIdTipoDocumento())
+                .tipoDocumento(t.getTipoDocumento().getCodigoTipo())
+                .numeroDocumento(t.getNumeroDocumento())
+                .razonSocial(t.getRazonSocial())
+                .idDistrito(t.getDistrito().getIdDistrito())
+                .direccion(t.getDireccion())
+                .telefono(t.getTelefono())
+                .correo(t.getCorreo())
+                .situacion(p.getSituacion())
+                .status(p.getStatus())
+                .build();
+    }
+
     @Transactional(readOnly = true)
-    public List<Proveedor> listarActivos() {
-        return proveedorRepository.findBySituacionAndStatus("ACTIVO", "A");
+    public List<ProveedorResponse> listarActivos() {
+        return proveedorRepository.findBySituacionAndStatus("ACTIVO", "A").stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @Transactional
     public void desactivar(Long idProveedor) {
-        Proveedor proveedor = buscarPorId(idProveedor);
+        Proveedor proveedor = obtenerEntidad(idProveedor);
         proveedor.setSituacion("INACTIVO");
         proveedor.setStatus("I");
         proveedor.setUserUpdate(usuarioActual());
@@ -114,7 +176,7 @@ public class ProveedorService {
         }
     }
 
-    /** Toma el usuario autenticado del JWT (mismo patrón que usa Mell en SectorEconomicoService). */
+    /** Toma el usuario autenticado del JWT. */
     private String usuarioActual() {
         return SecurityContextHolder.getContext().getAuthentication().getName();
     }

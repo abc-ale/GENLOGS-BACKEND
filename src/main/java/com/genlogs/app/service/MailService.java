@@ -5,19 +5,21 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.Base64;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.genlogs.app.exception.BusinessException;
 import com.genlogs.app.security.JwtUtil;
 
 /**
  * Envío de correos por la API HTTPS de Brevo (https://www.brevo.com).
  * Se usa HTTP en vez de SMTP porque Render bloquea los puertos SMTP en el plan gratuito.
  *
- * Si BREVO_API_KEY o MAIL_FROM_EMAIL no están configuradas, el enlace se escribe
+ * Si BREVO_API_KEY o MAIL_FROM_EMAIL no están configuradas, el enlace o mensaje se escribe
  * en los logs (útil para probar sin correo real).
  */
 @Service
@@ -77,6 +79,56 @@ public class MailService {
             log.error("Envío de correo interrumpido", e);
         } catch (Exception e) {
             log.error("No se pudo enviar el correo de recuperación", e);
+        }
+    }
+
+    /**
+     * Envía un correo de texto con un archivo adjunto (p. ej. el PDF de una cotización).
+     * A diferencia de enviarRecuperacion, aquí SÍ se lanza BusinessException si el correo
+     * no está configurado o Brevo lo rechaza, para que el usuario vea el error en pantalla.
+     */
+    public void enviarConAdjunto(String destino, String asunto, String mensaje, String nombreArchivo, byte[] adjunto) {
+        if (apiKey == null || apiKey.isBlank() || fromEmail == null || fromEmail.isBlank()) {
+            throw new BusinessException("El envío de correos no está configurado (BREVO_API_KEY / MAIL_FROM_EMAIL)");
+        }
+
+        String html = "<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#1F2937;\">"
+                + escaparHtml(mensaje).replace("\n", "<br>")
+                + "<br><br><span style=\"color:#64748B;font-size:12px;\">GenLogs S.A.C. - General Logistic Solutions</span></div>";
+
+        String json = "{"
+                + "\"sender\":{\"name\":" + jsonString(fromName) + ",\"email\":" + jsonString(fromEmail) + "},"
+                + "\"to\":[{\"email\":" + jsonString(destino) + "}],"
+                + "\"subject\":" + jsonString(asunto) + ","
+                + "\"htmlContent\":" + jsonString(html) + ","
+                + "\"textContent\":" + jsonString(mensaje) + ","
+                + "\"attachment\":[{\"name\":" + jsonString(nombreArchivo)
+                + ",\"content\":" + jsonString(Base64.getEncoder().encodeToString(adjunto)) + "}]"
+                + "}";
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.brevo.com/v3/smtp/email"))
+                    .timeout(Duration.ofSeconds(30))
+                    .header("api-key", apiKey)
+                    .header("accept", "application/json")
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(json))
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() >= 300) {
+                log.error("Brevo respondió {}: {}", response.statusCode(), response.body());
+                throw new BusinessException("No se pudo enviar el correo (el proveedor de correo respondió "
+                        + response.statusCode() + ")");
+            }
+            log.info("Correo con adjunto enviado");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new BusinessException("El envío del correo fue interrumpido");
+        } catch (java.io.IOException e) {
+            log.error("No se pudo enviar el correo con adjunto", e);
+            throw new BusinessException("No se pudo conectar con el proveedor de correo");
         }
     }
 

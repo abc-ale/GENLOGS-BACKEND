@@ -1,13 +1,14 @@
 package com.genlogs.app.controller;
 
+import com.genlogs.app.security.Roles;
 import com.genlogs.app.dto.ClienteRequest;
 import com.genlogs.app.dto.ClienteResponse;
-import com.genlogs.app.model.Cliente;
 import com.genlogs.app.service.ClienteService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -26,6 +27,13 @@ public class ClienteController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @PutMapping("/{idCliente}")
+    @PreAuthorize(Roles.COMERCIAL)
+    public ResponseEntity<ClienteResponse> actualizar(
+            @PathVariable Long idCliente, @Valid @RequestBody ClienteRequest request) {
+        return ResponseEntity.ok(clienteService.actualizar(idCliente, request));
+    }
+
     @GetMapping("/{idCliente}")
     public ResponseEntity<ClienteResponse> buscarPorId(@PathVariable Long idCliente) {
         return ResponseEntity.ok(clienteService.buscarPorId(idCliente));
@@ -37,7 +45,7 @@ public class ClienteController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Cliente>> listarActivos() {
+    public ResponseEntity<List<ClienteResponse>> listarActivos() {
         return ResponseEntity.ok(clienteService.listarActivos());
     }
 

@@ -1,7 +1,7 @@
 package com.genlogs.app.controller;
 
 import com.genlogs.app.dto.ProveedorRequest;
-import com.genlogs.app.model.Proveedor;
+import com.genlogs.app.dto.ProveedorResponse;
 import com.genlogs.app.service.ProveedorService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -20,18 +20,18 @@ public class ProveedorController {
 
     @PostMapping
     // @PreAuthorize("hasAnyRole('ADMINISTRADOR','VENDEDOR')") // lo agrega Luana con MethodSecurityConfig
-    public ResponseEntity<Proveedor> registrar(@Valid @RequestBody ProveedorRequest request) {
-        Proveedor proveedor = proveedorService.registrar(request);
+    public ResponseEntity<ProveedorResponse> registrar(@Valid @RequestBody ProveedorRequest request) {
+        ProveedorResponse proveedor = proveedorService.registrar(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(proveedor);
     }
 
     @GetMapping("/{idProveedor}")
-    public ResponseEntity<Proveedor> buscarPorId(@PathVariable Long idProveedor) {
+    public ResponseEntity<ProveedorResponse> buscarPorId(@PathVariable Long idProveedor) {
         return ResponseEntity.ok(proveedorService.buscarPorId(idProveedor));
     }
 
     @GetMapping
-    public ResponseEntity<List<Proveedor>> listarActivos() {
+    public ResponseEntity<List<ProveedorResponse>> listarActivos() {
         return ResponseEntity.ok(proveedorService.listarActivos());
     }
 

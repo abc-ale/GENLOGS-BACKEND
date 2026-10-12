@@ -70,6 +70,48 @@ public class ClienteService {
         return toResponse(cliente);
     }
 
+    /**
+     * Actualiza los datos de un cliente (PUT /api/clientes/{id}).
+     * Los datos de contacto viven en el Tercero, que puede ser compartido con un
+     * proveedor: al editarlos se actualizan para ambos roles. El tipo y número de
+     * documento no se pueden cambiar (identifican al tercero).
+     */
+    @Transactional
+    public ClienteResponse actualizar(Long idCliente, ClienteRequest request) {
+        Cliente cliente = clienteRepository.findById(idCliente)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado"));
+        Tercero tercero = cliente.getTercero();
+
+        if (!tercero.getTipoDocumento().getIdTipoDocumento().equals(request.getIdTipoDocumento())
+                || !tercero.getNumeroDocumento().equals(request.getNumeroDocumento())) {
+            throw new BusinessException("No se puede cambiar el tipo ni el número de documento de un cliente existente");
+        }
+
+        Distrito distrito = distritoRepository.findById(request.getIdDistrito())
+                .orElseThrow(() -> new ResourceNotFoundException("Distrito no existe"));
+        SectorEconomico sector = sectorEconomicoRepository.findById(request.getIdSectorEconomico())
+                .orElseThrow(() -> new ResourceNotFoundException("Sector económico no existe"));
+
+        String usuario = usuarioActual();
+        LocalDateTime ahora = LocalDateTime.now();
+
+        tercero.setRazonSocial(request.getRazonSocial());
+        tercero.setDistrito(distrito);
+        tercero.setDireccion(request.getDireccion());
+        tercero.setTelefono(request.getTelefono());
+        tercero.setCorreo(request.getCorreo());
+        tercero.setUserUpdate(usuario);
+        tercero.setProcessUpdate("EDICION_CLIENTE");
+        tercero.setDateUpdate(ahora);
+        terceroRepository.save(tercero);
+
+        cliente.setSectorEconomico(sector);
+        cliente.setUserUpdate(usuario);
+        cliente.setProcessUpdate("EDICION_CLIENTE");
+        cliente.setDateUpdate(ahora);
+        return toResponse(clienteRepository.save(cliente));
+    }
+
     @Transactional(readOnly = true)
     public ClienteResponse buscarPorId(Long idCliente) {
         Cliente cliente = clienteRepository.findById(idCliente)
@@ -85,8 +127,10 @@ public class ClienteService {
     }
 
     @Transactional(readOnly = true)
-    public List<Cliente> listarActivos() {
-        return clienteRepository.findBySituacionAndStatus("ACTIVO", "A");
+    public List<ClienteResponse> listarActivos() {
+        return clienteRepository.findBySituacionAndStatus("ACTIVO", "A").stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @Transactional
@@ -144,12 +188,16 @@ public class ClienteService {
         return ClienteResponse.builder()
                 .idCliente(cliente.getIdCliente())
                 .idTercero(t.getIdTercero())
+                .idTipoDocumento(t.getTipoDocumento().getIdTipoDocumento())
                 .tipoDocumento(t.getTipoDocumento().getCodigoTipo())
                 .numeroDocumento(t.getNumeroDocumento())
                 .razonSocial(t.getRazonSocial())
+                .idDistrito(t.getDistrito().getIdDistrito())
                 .direccion(t.getDireccion())
                 .telefono(t.getTelefono())
                 .correo(t.getCorreo())
+                .idSectorEconomico(cliente.getSectorEconomico() != null
+                        ? cliente.getSectorEconomico().getIdSectorEconomico() : null)
                 .sectorEconomico(cliente.getSectorEconomico() != null
                         ? cliente.getSectorEconomico().getNombreSector() : null)
                 .situacion(cliente.getSituacion())
@@ -157,7 +205,7 @@ public class ClienteService {
                 .build();
     }
 
-    /** Toma el usuario autenticado del JWT (mismo patrón que usa Mell en SectorEconomicoService). */
+    /** Toma el usuario autenticado del JWT. */
     private String usuarioActual() {
         return SecurityContextHolder.getContext().getAuthentication().getName();
     }
