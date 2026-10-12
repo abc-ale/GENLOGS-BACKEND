@@ -5,8 +5,12 @@ import java.util.List;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -23,8 +27,12 @@ import com.genlogs.app.dto.CambiarEstadoCotizacionRequest;
 import com.genlogs.app.dto.CotizacionDetalleResponse;
 import com.genlogs.app.dto.CotizacionRequest;
 import com.genlogs.app.dto.CotizacionResponse;
+import com.genlogs.app.dto.EnviarCotizacionRequest;
+import com.genlogs.app.dto.EnvioCotizacionResponse;
 import com.genlogs.app.dto.PaginaResponse;
 import com.genlogs.app.dto.SeguimientoCotizacionResponse;
+import com.genlogs.app.security.Roles;
+import com.genlogs.app.service.CotizacionDocumentoService;
 import com.genlogs.app.service.CotizacionService;
 
 import jakarta.validation.Valid;
@@ -36,6 +44,7 @@ import lombok.RequiredArgsConstructor;
 public class CotizacionController {
 
     private final CotizacionService cotizacionService;
+    private final CotizacionDocumentoService cotizacionDocumentoService;
 
     /**
      * Listado paginado con filtros, consumido por CotizacionesListPage.tsx
@@ -96,6 +105,23 @@ public class CotizacionController {
     public ResponseEntity<CotizacionResponse> cambiarEstado(
             @PathVariable Long id, @Valid @RequestBody CambiarEstadoCotizacionRequest request) {
         return ResponseEntity.ok(cotizacionService.cambiarEstado(id, request));
+    }
+
+    @GetMapping("/{id}/descargar-pdf")
+    public ResponseEntity<byte[]> descargarPdf(@PathVariable Long id) {
+        byte[] contenido = cotizacionDocumentoService.generarPdf(id);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentDisposition(ContentDisposition.attachment()
+                .filename(cotizacionDocumentoService.nombreArchivo(id)).build());
+        return ResponseEntity.ok().headers(headers).body(contenido);
+    }
+
+    @PostMapping("/{id}/enviar")
+    @PreAuthorize(Roles.COMERCIAL)
+    public ResponseEntity<EnvioCotizacionResponse> enviar(
+            @PathVariable Long id, @Valid @RequestBody EnviarCotizacionRequest request) {
+        return ResponseEntity.ok(cotizacionDocumentoService.enviar(id, request));
     }
 
     @PostMapping(value = "/{id}/adjuntos", consumes = "multipart/form-data")

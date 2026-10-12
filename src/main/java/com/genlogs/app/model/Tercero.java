@@ -33,7 +33,7 @@ public class Tercero extends Auditable {
     private Distrito distrito;
 
     /** RUC (11 dígitos) o DNI (8 dígitos), validado en el service y por trigger en BD */
-    @Column(name = "numero_documento", nullable = false, length = 11)
+    @Column(name = "numero_documento", nullable = false, length = 12)
     private String numeroDocumento;
 
     /** Razón social (RUC) o nombres y apellidos (DNI) */
