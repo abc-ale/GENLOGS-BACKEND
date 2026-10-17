@@ -5,6 +5,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.LocalDateTime;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,27 +16,34 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.genlogs.app.dto.ConsultaDocumentoResponse;
 import com.genlogs.app.exception.BusinessException;
+import com.genlogs.app.model.ConsultaDocumentoCache;
+import com.genlogs.app.repository.ConsultaDocumentoCacheRepository;
 
 /**
- * Autocompletado de RUC/DNI contra la API de Factiliza (RF-08: "Integrar
- * autocompletado de datos de RUC/DNI mediante Facilita APIs al registrar
- * un cliente"). Antes de esto, el formulario de alta de cliente/proveedor
- * no tenía ninguna fuente externa: el usuario escribía razón social y
- * dirección a mano.
+ * Autocompletado de RUC/DNI contra la API de Decolecta (RF-08).
  *
- * Si FACTILIZA_API_KEY no está configurada (todavía no se gestionó la
- * cuenta), responde con datos simulados en vez de fallar, para no bloquear
- * el trabajo del frontend mientras se consigue la key real.
+ * Si DECOLECTA_API_KEY no esta configurada, responde con datos simulados
+ * en vez de fallar, para no bloquear el trabajo del frontend.
  */
 @Service
-public class FactilizaService {
+public class DecolectaService {
 
-    private static final Logger log = LoggerFactory.getLogger(FactilizaService.class);
+    /** Los RUC cambian de estado/dirección: se vuelven a consultar pasado este plazo. El DNI no caduca. */
+    private static final long DIAS_VIGENCIA_RUC = 30;
 
-    @Value("${factiliza.api-key:}")
+    private final ConsultaDocumentoCacheRepository cacheRepository;
+
+    public DecolectaService(ConsultaDocumentoCacheRepository cacheRepository) {
+        this.cacheRepository = cacheRepository;
+    }
+
+    private static final Logger log = LoggerFactory.getLogger(DecolectaService.class);
+
+    // Proveedor: Decolecta (https://decolecta.com). Variable de entorno: DECOLECTA_API_KEY.
+    @Value("${decolecta.api-key:${DECOLECTA_API_KEY:}}")
     private String apiKey;
 
-    @Value("${factiliza.base-url:https://api.factiliza.com/v1}")
+    @Value("${decolecta.base-url:https://api.decolecta.com/v1}")
     private String baseUrl;
 
     private final HttpClient client = HttpClient.newBuilder()
@@ -60,18 +68,68 @@ public class FactilizaService {
             throw new BusinessException("El número de documento debe ser numérico");
         }
 
+        // 1) Primero la base de datos propia: si ya se consultó, no se gasta la API.
+        ConsultaDocumentoResponse enCache = buscarEnCache(limpio, tipo);
+        if (enCache != null) {
+            return enCache;
+        }
+
         if (apiKey == null || apiKey.isBlank()) {
-            log.warn("FACTILIZA_API_KEY no configurada. Devolviendo datos simulados para {} {}", tipo, limpio);
+            log.warn("DECOLECTA_API_KEY no configurada. Devolviendo datos simulados para {} {}", tipo, limpio);
             return simulado(limpio, tipo);
         }
 
-        return tipo.equals("RUC") ? consultarRuc(limpio) : consultarDni(limpio);
+        // 2) Si no estaba, se consulta Decolecta y se guarda el resultado.
+        ConsultaDocumentoResponse r = tipo.equals("RUC") ? consultarRuc(limpio) : consultarDni(limpio);
+        guardarEnCache(r);
+        return r;
+    }
+
+    private ConsultaDocumentoResponse buscarEnCache(String numero, String tipo) {
+        try {
+            return cacheRepository.findByNumeroDocumento(numero)
+                    .filter(c -> !"RUC".equals(tipo)
+                            || c.getFechaConsulta().isAfter(LocalDateTime.now().minusDays(DIAS_VIGENCIA_RUC)))
+                    .map(c -> ConsultaDocumentoResponse.builder()
+                            .numeroDocumento(c.getNumeroDocumento())
+                            .tipoDocumento(c.getTipoDocumento())
+                            .razonSocial(c.getRazonSocial())
+                            .direccion(c.getDireccion())
+                            .nombres(c.getNombres())
+                            .apellidoPaterno(c.getApellidoPaterno())
+                            .apellidoMaterno(c.getApellidoMaterno())
+                            .simulado(false)
+                            .build())
+                    .orElse(null);
+        } catch (Exception e) {
+            // Si la cache falla, se sigue consultando a la API en vez de romper la búsqueda.
+            log.warn("No se pudo leer la cache de documentos: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private void guardarEnCache(ConsultaDocumentoResponse r) {
+        try {
+            ConsultaDocumentoCache c = cacheRepository.findByNumeroDocumento(r.getNumeroDocumento())
+                    .orElseGet(ConsultaDocumentoCache::new);
+            c.setNumeroDocumento(r.getNumeroDocumento());
+            c.setTipoDocumento(r.getTipoDocumento());
+            c.setRazonSocial(r.getRazonSocial());
+            c.setDireccion(r.getDireccion());
+            c.setNombres(r.getNombres());
+            c.setApellidoPaterno(r.getApellidoPaterno());
+            c.setApellidoMaterno(r.getApellidoMaterno());
+            c.setFechaConsulta(LocalDateTime.now());
+            cacheRepository.save(c);
+        } catch (Exception e) {
+            log.warn("No se pudo guardar en la cache de documentos: {}", e.getMessage());
+        }
     }
 
     private ConsultaDocumentoResponse consultarRuc(String ruc) {
-        JsonNode data = consultar("/ruc/info/" + ruc);
+        JsonNode data = consultar("/sunat/ruc?numero=" + ruc);
 
-        String razonSocial = primero(data, "nombre_o_razon_social", "razon_social", "nombre");
+        String razonSocial = primero(data, "razon_social", "nombre_o_razon_social", "nombre");
         String direccion = primero(data, "direccion", "domicilio_fiscal");
 
         return ConsultaDocumentoResponse.builder()
@@ -84,12 +142,12 @@ public class FactilizaService {
     }
 
     private ConsultaDocumentoResponse consultarDni(String dni) {
-        JsonNode data = consultar("/dni/info/" + dni);
+        JsonNode data = consultar("/reniec/dni?numero=" + dni);
 
-        String nombre = primero(data, "nombres");
-        String apPaterno = primero(data, "apellido_paterno");
-        String apMaterno = primero(data, "apellido_materno");
-        String nombres = primero(data, "nombre_completo");
+        String nombre = primero(data, "first_name", "nombres");
+        String apPaterno = primero(data, "first_last_name", "apellido_paterno");
+        String apMaterno = primero(data, "second_last_name", "apellido_materno");
+        String nombres = primero(data, "full_name", "nombre_completo");
         if (nombres == null || nombres.isBlank()) {
             nombres = String.join(" ",
                     valorOVacio(nombre), valorOVacio(apPaterno), valorOVacio(apMaterno)).trim();
@@ -120,25 +178,25 @@ public class FactilizaService {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() >= 300) {
-                log.error("Factiliza respondió {}: {}", response.statusCode(), response.body());
-                throw new BusinessException("No se pudo consultar el documento en Factiliza");
+                log.error("Decolecta respondió {}: {}", response.statusCode(), response.body());
+                throw new BusinessException("No se pudo consultar el documento en Decolecta");
             }
 
             JsonNode body = mapper.readTree(response.body());
             JsonNode data = body.has("data") ? body.get("data") : body;
 
             if (data == null || data.isMissingNode() || data.isNull()) {
-                throw new BusinessException("Factiliza no encontró datos para ese documento");
+                throw new BusinessException("No se encontraron datos para ese documento");
             }
             return data;
         } catch (BusinessException e) {
             throw e;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new BusinessException("La consulta a Factiliza fue interrumpida");
+            throw new BusinessException("La consulta a Decolecta fue interrumpida");
         } catch (Exception e) {
-            log.error("Error consultando Factiliza", e);
-            throw new BusinessException("No se pudo consultar el documento en Factiliza");
+            log.error("Error consultando Decolecta", e);
+            throw new BusinessException("No se pudo consultar el documento en Decolecta");
         }
     }
 

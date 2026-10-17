@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.genlogs.app.dto.ConsultaDocumentoResponse;
-import com.genlogs.app.service.FactilizaService;
+import com.genlogs.app.service.DecolectaService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -22,10 +22,10 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class TerceroController {
 
-    private final FactilizaService factilizaService;
+    private final DecolectaService decolectaService;
 
     @GetMapping("/consultar-documento/{numero}")
     public ResponseEntity<ConsultaDocumentoResponse> consultarDocumento(@PathVariable String numero) {
-        return ResponseEntity.ok(factilizaService.consultarPorNumero(numero));
+        return ResponseEntity.ok(decolectaService.consultarPorNumero(numero));
     }
 }
