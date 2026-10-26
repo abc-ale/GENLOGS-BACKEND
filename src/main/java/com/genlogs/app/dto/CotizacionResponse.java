@@ -23,5 +23,6 @@ public class CotizacionResponse {
     private BigDecimal igv;
     private BigDecimal total;
     private String moneda;
+    private String condicionPago;
     private String observaciones;
 }

@@ -323,10 +323,12 @@ public class CotizacionService {
                 .fechaCotizacion(c.getFechaCotizacion())
                 .fechaValidez(c.getFechaValidez())
                 .estado(c.getEstadoCotizacion().getNombreEstado())
+                .estadoCodigo(c.getEstadoCotizacion().getCodigoEstado())
                 .subtotal(totales != null ? totales.getSubtotal() : BigDecimal.ZERO)
                 .igv(totales != null ? totales.getIgv() : BigDecimal.ZERO)
                 .total(totales != null ? totales.getTotal() : BigDecimal.ZERO)
                 .moneda(c.getMoneda().getSimbolo())
+                .condicionPago(c.getCondicionPago().getNombreCondicion())
                 .observaciones(c.getObservaciones())
                 .build();
     }
