@@ -3,6 +3,7 @@ package com.genlogs.app.service;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.awt.Color;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -77,7 +78,7 @@ public class ReporteService {
             return new ArchivoGenerado(bytes, nombreBase + ".xlsx",
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         } else {
-            byte[] bytes = generarPdf(encabezados, datos, request.getTipoReporte().name());
+            byte[] bytes = generarPdf(encabezados, datos, request.getTipoReporte().name(), request.getFechaInicio(), request.getFechaFin());
             return new ArchivoGenerado(bytes, nombreBase + ".pdf", "application/pdf");
         }
     }
@@ -250,44 +251,53 @@ public class ReporteService {
         }
     }
 
-    private byte[] generarPdf(String[] encabezados, String[][] datos, String titulo) {
+    private byte[] generarPdf(String[] encabezados, String[][] datos, String titulo,
+            LocalDate fechaInicio, LocalDate fechaFin) {
         try (PDDocument documento = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            boolean apaisado = encabezados.length >= 5;
+            PDRectangle formato = apaisado
+                    ? new PDRectangle(PDRectangle.A4.getHeight(), PDRectangle.A4.getWidth())
+                    : PDRectangle.A4;
             PDType1Font fuenteTitulo = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
             PDType1Font fuenteTexto = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+            float margen = 34;
+            float anchoTabla = formato.getWidth() - margen * 2;
+            float[] anchos = calcularAnchosColumnas(encabezados, datos, anchoTabla);
+            float y = abrirPagina(documento, formato, fuenteTitulo, titulo, fechaInicio, fechaFin,
+                    encabezados, anchos, margen, 1);
+            int numeroPagina = 1;
 
-            float margenIzq = 40;
-            float anchoUtil = PDRectangle.A4.getWidth() - 2 * margenIzq;
-            float anchoColumna = anchoUtil / encabezados.length;
-            float alturaLinea = 16;
-            float yInicio = PDRectangle.A4.getHeight() - 88;
-
-            PDPage pagina = new PDPage(PDRectangle.A4);
-            documento.addPage(pagina);
-            PDPageContentStream cs = new PDPageContentStream(documento, pagina);
-            float y = yInicio;
-
-            PdfBranding.logo(documento, cs, margenIzq, PDRectangle.A4.getHeight() - 68, 92, 38);
-            cs.setFont(fuenteTitulo, 14);
-            cs.beginText();
-            cs.newLineAtOffset(margenIzq, y);
-            cs.showText("Reporte GENLOGS - " + titulo);
-            cs.endText();
-            y -= alturaLinea * 2;
-
-            y = escribirFila(cs, fuenteTitulo, encabezados, margenIzq, y, anchoColumna, alturaLinea);
-
-            for (String[] fila : datos) {
-                if (y < 50) {
-                    cs.close();
-                    pagina = new PDPage(PDRectangle.A4);
-                    documento.addPage(pagina);
-                    cs = new PDPageContentStream(documento, pagina);
-                    y = yInicio;
+            for (int fila = 0; fila < datos.length; fila++) {
+                List<List<String>> celdas = new java.util.ArrayList<>();
+                float altoContenido = 0;
+                for (int columna = 0; columna < encabezados.length; columna++) {
+                    List<String> lineas = ajustarTexto(datos[fila][columna], fuenteTexto, 8.5f,
+                            anchos[columna] - 12, 5);
+                    celdas.add(lineas);
+                    altoContenido = Math.max(altoContenido, lineas.size() * 11f);
                 }
-                y = escribirFila(cs, fuenteTexto, fila, margenIzq, y, anchoColumna, alturaLinea);
+                float altoFila = Math.max(24, altoContenido + 10);
+                if (y - altoFila < 34) {
+                    numeroPagina++;
+                    y = abrirPagina(documento, formato, fuenteTitulo, titulo, fechaInicio, fechaFin,
+                            encabezados, anchos, margen, numeroPagina);
+                }
+                dibujarFila(documento.getPage(documento.getNumberOfPages() - 1), documento,
+                        celdas, anchos, margen, y, altoFila, fuenteTexto, fila % 2 == 0);
+                y -= altoFila;
             }
-            cs.close();
 
+            for (PDPage pagina : documento.getPages()) {
+                try (PDPageContentStream pie = new PDPageContentStream(documento, pagina,
+                        PDPageContentStream.AppendMode.APPEND, true, true)) {
+                    pie.setFont(fuenteTexto, 8);
+                    pie.setNonStrokingColor(new Color(100, 116, 139));
+                    pie.beginText();
+                    pie.newLineAtOffset(margen, 20);
+                    pie.showText("GENLOGS S.A.C. | RUC 20516185644");
+                    pie.endText();
+                }
+            }
             documento.save(out);
             return out.toByteArray();
         } catch (IOException e) {
@@ -295,17 +305,138 @@ public class ReporteService {
         }
     }
 
-    private float escribirFila(PDPageContentStream cs, PDType1Font fuente, String[] valores,
-            float margenIzq, float y, float anchoColumna, float alturaLinea) throws IOException {
-        cs.setFont(fuente, 9);
-        float x = margenIzq;
-        for (String valor : valores) {
+    private float abrirPagina(PDDocument documento, PDRectangle formato, PDType1Font fuenteTitulo,
+            String titulo, LocalDate fechaInicio, LocalDate fechaFin, String[] encabezados,
+            float[] anchos, float margen, int numeroPagina) throws IOException {
+        PDPage pagina = new PDPage(formato);
+        documento.addPage(pagina);
+        float alto = formato.getHeight();
+        try (PDPageContentStream cs = new PDPageContentStream(documento, pagina)) {
+            PdfBranding.logo(documento, cs, margen, alto - 57, 72, 28);
+            cs.setNonStrokingColor(new Color(16, 52, 96));
+            cs.setFont(fuenteTitulo, 16);
             cs.beginText();
-            cs.newLineAtOffset(x, y);
-            cs.showText(valor == null ? "" : valor.length() > 28 ? valor.substring(0, 25) + "..." : valor);
+            cs.newLineAtOffset(margen + 84, alto - 39);
+            cs.showText("Reporte GENLOGS - " + textoPdf(titulo));
             cs.endText();
-            x += anchoColumna;
+            cs.setNonStrokingColor(new Color(90, 105, 125));
+            cs.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 9);
+            cs.beginText();
+            cs.newLineAtOffset(margen + 84, alto - 54);
+            cs.showText("Periodo: " + fechaInicio.format(FMT) + " al " + fechaFin.format(FMT)
+                    + " | Pagina " + numeroPagina);
+            cs.endText();
+
+            float altoEncabezado = 28;
+            float x = margen;
+            float top = alto - 76;
+            for (int i = 0; i < anchos.length; i++) {
+                cs.setNonStrokingColor(new Color(16, 52, 96));
+                cs.addRect(x, top - altoEncabezado, anchos[i], altoEncabezado);
+                cs.fill();
+                cs.setFont(fuenteTitulo, 8.5f);
+                cs.setNonStrokingColor(Color.WHITE);
+                List<String> lineas = ajustarTexto(encabezados[i], fuenteTitulo, 8.5f, anchos[i] - 10, 2);
+                float textoY = top - 11 - (lineas.size() - 1) * 9;
+                for (String linea : lineas) {
+                    cs.beginText();
+                    cs.newLineAtOffset(x + 5, textoY);
+                    cs.showText(linea);
+                    cs.endText();
+                    textoY -= 9;
+                }
+                x += anchos[i];
+            }
         }
-        return y - alturaLinea;
+        return alto - 76 - 28;
+    }
+
+    private float[] calcularAnchosColumnas(String[] encabezados, String[][] datos, float anchoTabla)
+            throws IOException {
+        float[] pesos = new float[encabezados.length];
+        float suma = 0;
+        for (int columna = 0; columna < encabezados.length; columna++) {
+            int maxCaracteres = encabezados[columna].length();
+            for (String[] fila : datos) {
+                if (columna < fila.length && fila[columna] != null) {
+                    maxCaracteres = Math.max(maxCaracteres, Math.min(fila[columna].length(), 42));
+                }
+            }
+            pesos[columna] = Math.max(7, Math.min(maxCaracteres, 42));
+            suma += pesos[columna];
+        }
+        float[] anchos = new float[encabezados.length];
+        float usado = 0;
+        for (int i = 0; i < anchos.length; i++) {
+            anchos[i] = i == anchos.length - 1 ? anchoTabla - usado : anchoTabla * pesos[i] / suma;
+            usado += anchos[i];
+        }
+        return anchos;
+    }
+
+    private void dibujarFila(PDPage pagina, PDDocument documento, List<List<String>> celdas,
+            float[] anchos, float margen, float top, float alto, PDType1Font fuente, boolean alternada)
+            throws IOException {
+        try (PDPageContentStream cs = new PDPageContentStream(documento, pagina,
+                PDPageContentStream.AppendMode.APPEND, true, true)) {
+            float x = margen;
+            for (int columna = 0; columna < anchos.length; columna++) {
+                cs.setNonStrokingColor(alternada ? new Color(245, 248, 252) : Color.WHITE);
+                cs.setStrokingColor(new Color(218, 226, 237));
+                cs.setLineWidth(0.45f);
+                cs.addRect(x, top - alto, anchos[columna], alto);
+                cs.fillAndStroke();
+                cs.setFont(fuente, 8.5f);
+                cs.setNonStrokingColor(new Color(35, 45, 58));
+                float textoY = top - 14;
+                for (String linea : celdas.get(columna)) {
+                    cs.beginText();
+                    cs.newLineAtOffset(x + 5, textoY);
+                    cs.showText(linea);
+                    cs.endText();
+                    textoY -= 11;
+                }
+                x += anchos[columna];
+            }
+        }
+    }
+
+    private List<String> ajustarTexto(String valor, PDType1Font fuente, float tamano,
+            float anchoMaximo, int maxLineas) throws IOException {
+        String texto = textoPdf(valor == null ? "" : valor).trim();
+        List<String> lineas = new java.util.ArrayList<>();
+        StringBuilder actual = new StringBuilder();
+        for (String palabra : texto.split("\\s+")) {
+            String candidato = actual.isEmpty() ? palabra : actual + " " + palabra;
+            if (fuente.getStringWidth(candidato) * tamano / 1000f <= anchoMaximo) {
+                actual.setLength(0);
+                actual.append(candidato);
+            } else {
+                if (!actual.isEmpty()) lineas.add(actual.toString());
+                actual.setLength(0);
+                actual.append(palabra);
+                if (lineas.size() == maxLineas) break;
+            }
+        }
+        if (!actual.isEmpty() && lineas.size() < maxLineas) lineas.add(actual.toString());
+        if (lineas.isEmpty()) lineas.add("");
+        if (lineas.size() == maxLineas && !texto.endsWith(lineas.get(lineas.size() - 1))) {
+            String ultima = lineas.get(lineas.size() - 1);
+            while (!ultima.isEmpty() && fuente.getStringWidth(ultima + "...") * tamano / 1000f > anchoMaximo) {
+                ultima = ultima.substring(0, ultima.length() - 1);
+            }
+            lineas.set(lineas.size() - 1, ultima + "...");
+        }
+        return lineas;
+    }
+
+    private String textoPdf(String texto) {
+        StringBuilder limpio = new StringBuilder();
+        for (char caracter : texto.toCharArray()) {
+            limpio.append(caracter >= 32 && caracter <= 255 ? caracter : '?');
+        }
+        return limpio.toString();
     }
 }
+
+
