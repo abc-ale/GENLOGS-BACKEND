@@ -13,7 +13,6 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
-import org.apache.pdfbox.pdmodel.graphics.state.RenderingMode;
 
 import com.genlogs.app.dto.CotizacionDetalleResponse;
 import com.genlogs.app.dto.CotizacionResponse;
@@ -117,11 +116,11 @@ final class CotizacionPdfLayout {
         p.cs.addRect(LEFT, top - 20, TABLE_W, 20); p.cs.stroke();
         p.textRight(BOLD, 9, dinero(c.getSubtotal()), RIGHT - 6, top - 14);
         p.y = top - 34;
-        p.text(BOLD, 11, "TOTAL COTIZACIÓN " + moneda(c.getMoneda()) + " " + dinero(c.getSubtotal()) + " + IGV (18%)", LEFT, p.y);
+        p.text(BOLD, 11, "TOTAL COTIZACIÓN " + moneda(c) + " " + dinero(c.getSubtotal()) + " + IGV (18%)", LEFT, p.y);
         p.y -= 25;
-        detalle(p, "Moneda", moneda(c.getMoneda()));
-        detalle(p, "I.G.V. (18%)", moneda(c.getMoneda()) + " " + dinero(c.getIgv()));
-        detalle(p, "Total con I.G.V.", moneda(c.getMoneda()) + " " + dinero(c.getTotal()));
+        detalle(p, "Moneda", moneda(c));
+        detalle(p, "I.G.V. (18%)", moneda(c) + " " + dinero(c.getIgv()));
+        detalle(p, "Total con I.G.V.", moneda(c) + " " + dinero(c.getTotal()));
         detalle(p, "Validez de la oferta", fechaLarga(c.getFechaValidez()));
         if (c.getPlazoEntregaEstimadoDias() != null) detalle(p, "Plazo de entrega", c.getPlazoEntregaEstimadoDias() + " días (referencial)");
         if (c.getObservaciones() != null && !c.getObservaciones().isBlank()) {
@@ -175,18 +174,42 @@ final class CotizacionPdfLayout {
         return lines;
     }
 
-    private static String moneda(String s) {
-        if (s == null || s.isBlank()) return "PEN";
-        return s.equalsIgnoreCase("S/") ? "PEN" : s;
+    /** Siempre el código ISO (PEN/USD/EUR), nunca el símbolo (S/, $, €). */
+    private static String moneda(CotizacionResponse c) {
+        String codigo = c.getMonedaCodigo();
+        if (codigo != null && !codigo.isBlank()) return codigo.trim().toUpperCase();
+        String s = c.getMoneda() == null ? "" : c.getMoneda().trim().toUpperCase();
+        return switch (s) {
+            case "", "S/", "S/.", "SOL", "SOLES" -> "PEN";
+            case "$", "US$", "USD", "DOLAR", "DÓLAR" -> "USD";
+            case "€", "EUR", "EURO" -> "EUR";
+            default -> s;
+        };
     }
     private static String fechaLarga(java.time.LocalDate d) { return d == null ? "No especificada" : d.format(java.time.format.DateTimeFormatter.ofPattern("dd 'de' MMMM 'de' yyyy", java.util.Locale.forLanguageTag("es-PE"))); }
     private static String numero(BigDecimal n) { return n == null ? "-" : n.stripTrailingZeros().toPlainString(); }
     private static String dinero(BigDecimal n) { return n == null ? "0.00" : n.setScale(2, RoundingMode.HALF_UP).toPlainString(); }
     private static String valor(String s) { return s == null || s.isBlank() ? "-" : s; }
     private static String recortar(String s, int max) { return s.length() > max ? s.substring(0, max) : s; }
+    /**
+     * Deja solo caracteres que la fuente Helvetica (WinAnsi) sabe dibujar. Antes se permitía todo hasta el
+     * código 255, pero 0x80-0x9F (típico de datos importados desde Excel) hace que PDFBox lance
+     * IllegalArgumentException y la descarga termine en HTTP 500.
+     */
     private static String limpiar(String s) {
+        if (s == null) return "";
         StringBuilder b = new StringBuilder();
-        for (char c : s.toCharArray()) b.append(c >= 32 && c <= 255 ? c : ' ');
+        for (char c : s.toCharArray()) {
+            switch (c) {
+                case '\u2013', '\u2014', '\u2212' -> b.append('-');
+                case '\u2018', '\u2019', '\u00B4' -> b.append('\'');
+                case '\u201C', '\u201D' -> b.append('"');
+                case '\u2022' -> b.append('-');
+                case '\u2026' -> b.append("...");
+                case '\u20AC' -> b.append("EUR");
+                default -> b.append((c >= 32 && c <= 126) || (c >= 161 && c <= 255 && c != 173) ? c : ' ');
+            }
+        }
         return b.toString().replaceAll("\\s+", " ").trim();
     }
 
@@ -221,6 +244,3 @@ final class CotizacionPdfLayout {
         void cerrar() throws IOException { cerrarPagina(); }
     }
 }
-
-
-

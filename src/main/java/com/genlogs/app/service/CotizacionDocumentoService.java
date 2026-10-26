@@ -1,18 +1,10 @@
 package com.genlogs.app.service;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.math.BigDecimal;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.pdmodel.PDPage;
-import org.apache.pdfbox.pdmodel.PDPageContentStream;
-import org.apache.pdfbox.pdmodel.common.PDRectangle;
-import org.apache.pdfbox.pdmodel.font.PDType1Font;
-import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -34,7 +26,6 @@ import lombok.RequiredArgsConstructor;
 public class CotizacionDocumentoService {
 
     private static final Logger log = LoggerFactory.getLogger(CotizacionDocumentoService.class);
-    private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final CotizacionService cotizacionService;
     private final MailService mailService;
@@ -72,11 +63,11 @@ public class CotizacionDocumentoService {
             texto.append("\n\n--- Detalle ---\n");
             for (CotizacionDetalleResponse l : cotizacionService.listarLineas(idCotizacion)) {
                 texto.append("- ").append(num(l.getCantidad())).append(" x ").append(descripcionDe(l))
-                        .append("  ").append(nvl(c.getMoneda())).append(' ').append(dinero(l.getImporteLinea())).append('\n');
+                        .append("  ").append(codigoMoneda(c)).append(' ').append(dinero(l.getImporteLinea())).append('\n');
             }
-            texto.append("Subtotal: ").append(nvl(c.getMoneda())).append(' ').append(dinero(c.getSubtotal())).append('\n')
-                    .append("IGV: ").append(nvl(c.getMoneda())).append(' ').append(dinero(c.getIgv())).append('\n')
-                    .append("TOTAL: ").append(nvl(c.getMoneda())).append(' ').append(dinero(c.getTotal())).append('\n');
+            texto.append("Subtotal: ").append(codigoMoneda(c)).append(' ').append(dinero(c.getSubtotal())).append('\n')
+                    .append("IGV: ").append(codigoMoneda(c)).append(' ').append(dinero(c.getIgv())).append('\n')
+                    .append("TOTAL: ").append(codigoMoneda(c)).append(' ').append(dinero(c.getTotal())).append('\n');
         }
 
         // Lanza BusinessException si el correo no está configurado o Brevo rechaza el envío.
@@ -111,8 +102,9 @@ public class CotizacionDocumentoService {
         return l.getServicioNombre() != null ? l.getServicioNombre() : "Item";
     }
 
-    private static String nvl(String s) {
-        return s == null || s.isBlank() ? "-" : s;
+    private static String codigoMoneda(CotizacionResponse c) {
+        String codigo = c.getMonedaCodigo();
+        return codigo == null || codigo.isBlank() ? "PEN" : codigo.trim().toUpperCase();
     }
 
     private static String num(BigDecimal n) {
@@ -122,61 +114,4 @@ public class CotizacionDocumentoService {
     private static String dinero(BigDecimal n) {
         return n == null ? "0.00" : n.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
     }
-
-    private static String recortar(String s, int max) {
-        return s.length() > max ? s.substring(0, max - 3) + "..." : s;
-    }
-
-    /** Escribe líneas de texto y abre una página nueva cuando se acaba el espacio. */
-    private static final class Pagina {
-        private final PDDocument doc;
-        private PDPageContentStream cs;
-        private float y;
-
-        Pagina(PDDocument doc) throws IOException {
-            this.doc = doc;
-            nueva();
-        }
-
-        private void nueva() throws IOException {
-            if (cs != null) {
-                cs.close();
-            }
-            PDPage page = new PDPage(PDRectangle.A4);
-            doc.addPage(page);
-            cs = new PDPageContentStream(doc, page);
-            y = PDRectangle.A4.getHeight() - 78;
-            PdfBranding.logo(doc, cs, 40, PDRectangle.A4.getHeight() - 66, 92, 38);
-        }
-
-        void linea(PDType1Font fuente, int tam, String texto) throws IOException {
-            if (y < 60) {
-                nueva();
-            }
-            cs.setFont(fuente, tam);
-            cs.beginText();
-            cs.newLineAtOffset(40, y);
-            cs.showText(sanitizar(texto));
-            cs.endText();
-            y -= tam + 6;
-        }
-
-        void espacio(float puntos) {
-            y -= puntos;
-        }
-
-        void cerrar() throws IOException {
-            cs.close();
-        }
-
-        /** Las fuentes estándar de PDFBox (WinAnsi) no admiten todos los caracteres Unicode. */
-        private static String sanitizar(String t) {
-            StringBuilder sb = new StringBuilder();
-            for (char c : t.toCharArray()) {
-                sb.append(c < 256 && c >= 32 ? c : '?');
-            }
-            return sb.toString();
-        }
-    }
 }
-

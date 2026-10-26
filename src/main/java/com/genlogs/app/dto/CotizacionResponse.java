@@ -22,7 +22,8 @@ public class CotizacionResponse {
     private BigDecimal subtotal;
     private BigDecimal igv;
     private BigDecimal total;
-    private String moneda;
+    private String moneda;        // símbolo en BD (S/, $, €)
+    private String monedaCodigo;   // código ISO (PEN, USD, EUR)
     private String condicionPago;
     private String observaciones;
 }

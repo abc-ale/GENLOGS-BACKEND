@@ -128,8 +128,9 @@ public class ClienteService {
 
     @Transactional(readOnly = true)
     public List<ClienteResponse> listarActivos() {
-        return clienteRepository.findBySituacionAndStatus("ACTIVO", "A").stream()
-                .map(this::toResponse)
+        java.util.Set<Long> terceroProveedores = proveedorRepository.idsTerceroProveedores();
+        return clienteRepository.listarParaPantalla().stream()
+                .map(c -> toResponse(c, terceroProveedores.contains(c.getTercero().getIdTercero())))
                 .toList();
     }
 
@@ -184,6 +185,11 @@ public class ClienteService {
         boolean tambienProveedor = proveedorRepository
                 .findByTercero_IdTercero(t.getIdTercero())
                 .isPresent();
+        return toResponse(cliente, tambienProveedor);
+    }
+
+    private ClienteResponse toResponse(Cliente cliente, boolean tambienProveedor) {
+        Tercero t = cliente.getTercero();
 
         return ClienteResponse.builder()
                 .idCliente(cliente.getIdCliente())

@@ -328,6 +328,7 @@ public class CotizacionService {
                 .igv(totales != null ? totales.getIgv() : BigDecimal.ZERO)
                 .total(totales != null ? totales.getTotal() : BigDecimal.ZERO)
                 .moneda(c.getMoneda().getSimbolo())
+                .monedaCodigo(c.getMoneda().getCodigoMoneda() != null ? c.getMoneda().getCodigoMoneda().trim() : null)
                 .condicionPago(c.getCondicionPago().getNombreCondicion())
                 .observaciones(c.getObservaciones())
                 .build();
