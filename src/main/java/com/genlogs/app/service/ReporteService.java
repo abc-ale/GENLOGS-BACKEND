@@ -259,17 +259,18 @@ public class ReporteService {
             float anchoUtil = PDRectangle.A4.getWidth() - 2 * margenIzq;
             float anchoColumna = anchoUtil / encabezados.length;
             float alturaLinea = 16;
-            float yInicio = PDRectangle.A4.getHeight() - 50;
+            float yInicio = PDRectangle.A4.getHeight() - 88;
 
             PDPage pagina = new PDPage(PDRectangle.A4);
             documento.addPage(pagina);
             PDPageContentStream cs = new PDPageContentStream(documento, pagina);
             float y = yInicio;
 
+            PdfBranding.logo(documento, cs, margenIzq, PDRectangle.A4.getHeight() - 68, 92, 38);
             cs.setFont(fuenteTitulo, 14);
             cs.beginText();
             cs.newLineAtOffset(margenIzq, y);
-            cs.showText("Reporte GENLOGS — " + titulo);
+            cs.showText("Reporte GENLOGS - " + titulo);
             cs.endText();
             y -= alturaLinea * 2;
 

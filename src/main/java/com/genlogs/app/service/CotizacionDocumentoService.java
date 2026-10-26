@@ -183,7 +183,8 @@ public class CotizacionDocumentoService {
             PDPage page = new PDPage(PDRectangle.A4);
             doc.addPage(page);
             cs = new PDPageContentStream(doc, page);
-            y = PDRectangle.A4.getHeight() - 50;
+            y = PDRectangle.A4.getHeight() - 78;
+            PdfBranding.logo(doc, cs, 40, PDRectangle.A4.getHeight() - 66, 92, 38);
         }
 
         void linea(PDType1Font fuente, int tam, String texto) throws IOException {
