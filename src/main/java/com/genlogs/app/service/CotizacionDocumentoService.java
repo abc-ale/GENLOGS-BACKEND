@@ -46,46 +46,8 @@ public class CotizacionDocumentoService {
     public byte[] generarPdf(Long idCotizacion) {
         CotizacionResponse c = cotizacionService.buscarPorId(idCotizacion);
         List<CotizacionDetalleResponse> lineas = cotizacionService.listarLineas(idCotizacion);
-
-        try (PDDocument doc = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            PDType1Font negrita = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
-            PDType1Font normal = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
-            Pagina p = new Pagina(doc);
-
-            p.linea(negrita, 14, "GENLOGS - General Logistic Solutions S.A.C.");
-            p.linea(normal, 9, "RUC 20516185644 - Jr. Republica de Ecuador 1025, Lima, Peru");
-            p.espacio(8);
-            p.linea(negrita, 13, "COTIZACION " + nvl(c.getCodigoCotizacion()));
-            p.espacio(4);
-            p.linea(normal, 10, "Cliente: " + nvl(c.getClienteRazonSocial()));
-            p.linea(normal, 10, "Fecha: " + (c.getFechaCotizacion() != null ? c.getFechaCotizacion().format(FMT) : "-")
-                    + "    Valida hasta: " + (c.getFechaValidez() != null ? c.getFechaValidez().format(FMT) : "-"));
-            p.linea(normal, 10, "Estado: " + nvl(c.getEstado()) + "    Moneda: " + nvl(c.getMoneda()));
-            if (c.getPlazoEntregaEstimadoDias() != null) {
-                p.linea(normal, 10, "Plazo de entrega estimado: " + c.getPlazoEntregaEstimadoDias()
-                        + " dias (referencial, sujeto a confirmacion)");
-            }
-            p.espacio(10);
-
-            p.linea(negrita, 9, String.format("%-6s %-10s %-44s %10s %10s", "Cant.", "Unidad", "Descripcion", "P.Unit", "Importe"));
-            for (CotizacionDetalleResponse l : lineas) {
-                String desc = recortar(descripcionDe(l), 44);
-                p.linea(normal, 9, String.format("%-6s %-10s %-44s %10s %10s",
-                        num(l.getCantidad()), recortar(nvl(l.getUnidadMedida()), 10), desc,
-                        dinero(l.getPrecioUnitario()), dinero(l.getImporteLinea())));
-            }
-            p.espacio(10);
-            p.linea(normal, 10, "Subtotal: " + nvl(c.getMoneda()) + " " + dinero(c.getSubtotal()));
-            p.linea(normal, 10, "IGV (18%): " + nvl(c.getMoneda()) + " " + dinero(c.getIgv()));
-            p.linea(negrita, 11, "TOTAL: " + nvl(c.getMoneda()) + " " + dinero(c.getTotal()));
-            if (c.getObservaciones() != null && !c.getObservaciones().isBlank()) {
-                p.espacio(8);
-                p.linea(normal, 9, "Observaciones: " + recortar(c.getObservaciones(), 110));
-            }
-
-            p.cerrar();
-            doc.save(out);
-            return out.toByteArray();
+        try {
+            return CotizacionPdfLayout.generar(c, lineas);
         } catch (IOException e) {
             throw new UncheckedIOException("No se pudo generar el PDF de la cotización", e);
         }
@@ -217,3 +179,4 @@ public class CotizacionDocumentoService {
         }
     }
 }
+
