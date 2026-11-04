@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.genlogs.app.dto.ReporteRequest;
+import com.genlogs.app.dto.ReporteVistaPreviaResponse;
 import com.genlogs.app.service.ReporteService;
 import com.genlogs.app.service.ReporteService.ArchivoGenerado;
 
@@ -41,5 +42,11 @@ public class ReporteController {
         return ResponseEntity.ok()
                 .headers(headers)
                 .body(archivo.contenido());
+    }
+
+    /** Vista previa en JSON (primeras filas) para mostrarla junto al formulario antes de descargar. */
+    @PostMapping("/vista-previa")
+    public ResponseEntity<ReporteVistaPreviaResponse> vistaPrevia(@Valid @RequestBody ReporteRequest request) {
+        return ResponseEntity.ok(reporteService.vistaPrevia(request));
     }
 }

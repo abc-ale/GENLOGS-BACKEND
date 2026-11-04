@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.genlogs.app.dto.ReporteRequest;
+import com.genlogs.app.dto.ReporteVistaPreviaResponse;
 import com.genlogs.app.exception.BusinessException;
 import com.genlogs.app.model.Cotizacion;
 import com.genlogs.app.model.Facturacion;
@@ -65,7 +66,7 @@ public class ReporteService {
             throw new BusinessException("La fecha de inicio no puede ser mayor a la fecha fin");
         }
 
-        String[][] filas = construirFilas(request);
+        String[][] filas = construirFilas(request, Integer.MAX_VALUE, new int[1]);
         String[] encabezados = filas[0];
         String[][] datos = new String[filas.length - 1][];
         System.arraycopy(filas, 1, datos, 0, filas.length - 1);
@@ -83,29 +84,52 @@ public class ReporteService {
         }
     }
 
+    private static final int LIMITE_VISTA_PREVIA = 100;
+
+    /** Primeras filas del reporte en JSON, para mostrarlas en pantalla antes de descargar. */
+    @Transactional(readOnly = true)
+    public ReporteVistaPreviaResponse vistaPrevia(ReporteRequest request) {
+        if (request.getFechaInicio().isAfter(request.getFechaFin())) {
+            throw new BusinessException("La fecha de inicio no puede ser mayor a la fecha fin");
+        }
+        int[] total = new int[1];
+        String[][] filas = construirFilas(request, LIMITE_VISTA_PREVIA, total);
+        List<String> encabezados = List.of(filas[0]);
+        List<List<String>> datos = new java.util.ArrayList<>();
+        for (int i = 1; i < filas.length; i++) {
+            List<String> fila = new java.util.ArrayList<>();
+            for (String celda : filas[i]) fila.add(celda == null ? "" : celda);
+            datos.add(fila);
+        }
+        return new ReporteVistaPreviaResponse(request.getTipoReporte().name(), encabezados, datos,
+                total[0], total[0] > datos.size());
+    }
+
     // ------------------------------------------------------------------
     // Armado de filas por tipo de reporte
     // ------------------------------------------------------------------
 
-    private String[][] construirFilas(ReporteRequest req) {
+    private String[][] construirFilas(ReporteRequest req, int limite, int[] totalOut) {
         LocalDate desde = req.getFechaInicio();
         LocalDate hasta = req.getFechaFin();
 
         return switch (req.getTipoReporte()) {
-            case COTIZACIONES -> filasCotizaciones(desde, hasta);
-            case ORDENES_COMPRA -> filasOrdenesCompra(desde, hasta);
-            case FACTURACION -> filasFacturacion(desde, hasta);
-            case SERVICIOS -> filasServicios();
-            case PRODUCTOS -> filasProductos();
+            case COTIZACIONES -> filasCotizaciones(desde, hasta, limite, totalOut);
+            case ORDENES_COMPRA -> filasOrdenesCompra(desde, hasta, limite, totalOut);
+            case FACTURACION -> filasFacturacion(desde, hasta, limite, totalOut);
+            case SERVICIOS -> filasServicios(limite, totalOut);
+            case PRODUCTOS -> filasProductos(limite, totalOut);
         };
     }
 
-    private String[][] filasCotizaciones(LocalDate desde, LocalDate hasta) {
-        List<Cotizacion> cotizaciones = cotizacionRepository.findAll().stream()
+    private String[][] filasCotizaciones(LocalDate desde, LocalDate hasta, int limite, int[] totalOut) {
+        List<Cotizacion> todas = cotizacionRepository.findAll().stream()
                 .filter(c -> "A".equals(c.getStatus()))
                 .filter(c -> !c.getFechaCotizacion().isBefore(desde) && !c.getFechaCotizacion().isAfter(hasta))
                 .sorted((a, b) -> a.getFechaCotizacion().compareTo(b.getFechaCotizacion()))
                 .toList();
+        totalOut[0] = todas.size();
+        List<Cotizacion> cotizaciones = todas.stream().limit(limite).toList();
 
         String[][] filas = new String[cotizaciones.size() + 1][];
         filas[0] = new String[] { "Código", "Cliente", "Fecha", "Estado", "Moneda", "Total" };
@@ -117,19 +141,21 @@ public class ReporteService {
                     c.getCliente().getTercero().getRazonSocial(),
                     c.getFechaCotizacion().format(FMT),
                     c.getEstadoCotizacion().getNombreEstado(),
-                    c.getMoneda().getSimbolo(),
+                    c.getMoneda().getCodigoMoneda() != null ? c.getMoneda().getCodigoMoneda().trim() : c.getMoneda().getSimbolo(),
                     totales != null ? totales.getTotal().toPlainString() : "0.00",
             };
         }
         return filas;
     }
 
-    private String[][] filasOrdenesCompra(LocalDate desde, LocalDate hasta) {
-        List<OrdenCompra> ordenes = ordenCompraRepository.findAll().stream()
+    private String[][] filasOrdenesCompra(LocalDate desde, LocalDate hasta, int limite, int[] totalOut) {
+        List<OrdenCompra> todas = ordenCompraRepository.findAll().stream()
                 .filter(o -> "A".equals(o.getStatus()))
                 .filter(o -> !o.getFechaRecepcion().isBefore(desde) && !o.getFechaRecepcion().isAfter(hasta))
                 .sorted((a, b) -> a.getFechaRecepcion().compareTo(b.getFechaRecepcion()))
                 .toList();
+        totalOut[0] = todas.size();
+        List<OrdenCompra> ordenes = todas.stream().limit(limite).toList();
 
         String[][] filas = new String[ordenes.size() + 1][];
         filas[0] = new String[] { "Número", "Cotización origen", "Cliente", "Fecha recepción", "Estado" };
@@ -146,12 +172,14 @@ public class ReporteService {
         return filas;
     }
 
-    private String[][] filasFacturacion(LocalDate desde, LocalDate hasta) {
-        List<Facturacion> facturas = facturacionRepository.findAll().stream()
+    private String[][] filasFacturacion(LocalDate desde, LocalDate hasta, int limite, int[] totalOut) {
+        List<Facturacion> todas = facturacionRepository.findAll().stream()
                 .filter(f -> "A".equals(f.getStatus()))
                 .filter(f -> !f.getFechaEmision().isBefore(desde) && !f.getFechaEmision().isAfter(hasta))
                 .sorted((a, b) -> a.getFechaEmision().compareTo(b.getFechaEmision()))
                 .toList();
+        totalOut[0] = todas.size();
+        List<Facturacion> facturas = todas.stream().limit(limite).toList();
 
         String[][] filas = new String[facturas.size() + 1][];
         filas[0] = new String[] { "Comprobante", "Cliente", "Fecha emisión", "Fecha vencimiento", "Monto pagado", "Estado" };
@@ -171,11 +199,13 @@ public class ReporteService {
 
     /** Servicios y Productos no tienen una fecha de negocio propia para filtrar
      *  por rango (son catálogo, no movimiento); se listan completos (activos). */
-    private String[][] filasServicios() {
-        List<Servicio> servicios = servicioRepository.findAll().stream()
+    private String[][] filasServicios(int limite, int[] totalOut) {
+        List<Servicio> todos = servicioRepository.findAll().stream()
                 .filter(s -> "A".equals(s.getStatus()))
                 .sorted((a, b) -> a.getNombreServicio().compareTo(b.getNombreServicio()))
                 .toList();
+        totalOut[0] = todos.size();
+        List<Servicio> servicios = todos.stream().limit(limite).toList();
 
         String[][] filas = new String[servicios.size() + 1][];
         filas[0] = new String[] { "Código", "Nombre", "Categoría", "Unidad de medida", "Visible web" };
@@ -192,11 +222,13 @@ public class ReporteService {
         return filas;
     }
 
-    private String[][] filasProductos() {
-        List<Producto> productos = productoRepository.findAll().stream()
+    private String[][] filasProductos(int limite, int[] totalOut) {
+        List<Producto> todos = productoRepository.findAll().stream()
                 .filter(p -> "A".equals(p.getStatus()))
                 .sorted((a, b) -> a.getNombreProducto().compareTo(b.getNombreProducto()))
                 .toList();
+        totalOut[0] = todos.size();
+        List<Producto> productos = todos.stream().limit(limite).toList();
 
         String[][] filas = new String[productos.size() + 1][];
         filas[0] = new String[] { "Código", "Nombre", "Categoría", "Marca", "Visible web" };
@@ -432,11 +464,10 @@ public class ReporteService {
 
     private String textoPdf(String texto) {
         StringBuilder limpio = new StringBuilder();
+        if (texto == null) return "";
         for (char caracter : texto.toCharArray()) {
-            limpio.append(caracter >= 32 && caracter <= 255 ? caracter : '?');
+            limpio.append((caracter >= 32 && caracter <= 126) || (caracter >= 161 && caracter <= 255 && caracter != 173) ? caracter : '?');
         }
         return limpio.toString();
     }
 }
-
-
