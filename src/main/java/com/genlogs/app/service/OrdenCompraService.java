@@ -86,6 +86,12 @@ public class OrdenCompraService {
             throw new BusinessException("Esta cotización ya tiene una orden de compra vigente; anúlala para registrar una nueva");
         }
 
+        // Numeración NNNN-NN (la valida @Pattern en OrdenCompraRequest) y única entre las órdenes activas.
+        String numero = request.getNumeroOrdenCompra().trim();
+        if (ordenCompraRepository.existsByNumeroOrdenCompraAndStatus(numero, "A")) {
+            throw new BusinessException("Ya existe una orden de compra con el número " + numero);
+        }
+
         CondicionPago condicionPago = request.getIdCondicionPago() != null
                 ? condicionPagoRepository.findById(request.getIdCondicionPago())
                         .orElseThrow(() -> new ResourceNotFoundException("Condición de pago no encontrada"))
@@ -100,7 +106,7 @@ public class OrdenCompraService {
                 .cotizacion(cotizacion)
                 .estadoOrdenCompra(estadoInicial)
                 .condicionPago(condicionPago)
-                .numeroOrdenCompra(request.getNumeroOrdenCompra())
+                .numeroOrdenCompra(numero)
                 .fechaEmisionCliente(request.getFechaEmisionCliente())
                 .observaciones(request.getObservaciones())
                 .build();
