@@ -31,6 +31,16 @@ final class CotizacionPdfLayout {
 
     private CotizacionPdfLayout() {}
 
+    // PDFBox 3 recibe los colores en escala 0..1; con 0..255 lanza IllegalArgumentException
+    // ("Parameters must be within 0..1") y la descarga y el envío de la cotización fallaban.
+    private static void trazo(PDPageContentStream cs, int r, int g, int b) throws IOException {
+        cs.setStrokingColor(r / 255f, g / 255f, b / 255f);
+    }
+
+    private static void relleno(PDPageContentStream cs, int r, int g, int b) throws IOException {
+        cs.setNonStrokingColor(r / 255f, g / 255f, b / 255f);
+    }
+
     static byte[] generar(CotizacionResponse cotizacion, List<CotizacionDetalleResponse> lineas) throws IOException {
         try (PDDocument doc = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Pagina pagina = new Pagina(doc);
@@ -75,13 +85,15 @@ final class CotizacionPdfLayout {
     private static void encabezadoTabla(Pagina p) throws IOException {
         float top = p.y;
         float height = 19;
-        p.cs.setNonStrokingColor(231, 235, 241);
+        relleno(p.cs, 231, 235, 241);
         p.cs.addRect(LEFT, top - height, TABLE_W, height);
         p.cs.fill();
+        // El texto usa el mismo color de relleno: se vuelve a negro tras pintar el fondo gris.
+        relleno(p.cs, 0, 0, 0);
         String[] labels = { "ITEM", "CANT", "U/M", "DESCRIPCIÓN", "P. UNITARIO", "TOTAL" };
         float x = LEFT;
         for (int i = 0; i < COL.length; i++) {
-            p.cs.setStrokingColor(35, 45, 58); p.cs.setLineWidth(.55f);
+            trazo(p.cs, 35, 45, 58); p.cs.setLineWidth(.55f);
             p.cs.addRect(x, top - height, COL[i], height); p.cs.stroke();
             p.textCentered(BOLD, 7.5f, labels[i], x + COL[i] / 2, top - 12.5f);
             x += COL[i];
@@ -92,7 +104,7 @@ final class CotizacionPdfLayout {
     private static void fila(Pagina p, int item, CotizacionDetalleResponse l, List<String> desc, float height) throws IOException {
         float top = p.y, bottom = top - height, x = LEFT;
         for (float width : COL) {
-            p.cs.setStrokingColor(35, 45, 58); p.cs.setLineWidth(.55f);
+            trazo(p.cs, 35, 45, 58); p.cs.setLineWidth(.55f);
             p.cs.addRect(x, bottom, width, height); p.cs.stroke(); x += width;
         }
         float middle = bottom + height / 2 - 3;
@@ -118,7 +130,7 @@ final class CotizacionPdfLayout {
 
     private static void totalesYCondiciones(Pagina p, CotizacionResponse c) throws IOException {
         float top = p.y;
-        p.cs.setStrokingColor(35, 45, 58); p.cs.setLineWidth(.55f);
+        trazo(p.cs, 35, 45, 58); p.cs.setLineWidth(.55f);
         p.cs.addRect(LEFT, top - 20, TABLE_W, 20); p.cs.stroke();
         p.textRight(BOLD, 9, dinero(c.getSubtotal()), RIGHT - 6, top - 14);
         p.y = top - 34;
@@ -241,10 +253,10 @@ final class CotizacionPdfLayout {
         void textRight(PDType1Font font, float size, String text, float right, float baseline) throws IOException {
             String safe = limpiar(text); text(font, size, safe, right - font.getStringWidth(safe) / 1000 * size, baseline);
         }
-        void line(float x1, float y1, float x2, float y2) throws IOException { cs.setStrokingColor(NAVY_R, NAVY_G, NAVY_B); cs.setLineWidth(.8f); cs.moveTo(x1, y1); cs.lineTo(x2, y2); cs.stroke(); }
+        void line(float x1, float y1, float x2, float y2) throws IOException { trazo(cs, NAVY_R, NAVY_G, NAVY_B); cs.setLineWidth(.8f); cs.moveTo(x1, y1); cs.lineTo(x2, y2); cs.stroke(); }
         void cerrarPagina() throws IOException {
             if (cs == null) return;
-            cs.setNonStrokingColor(75, 83, 95);
+            relleno(cs, 75, 83, 95);
             text(REG, 8, "Jr. República de Ecuador Nro. 1025, Lima", W / 2 - 78, 37);
             text(REG, 8, "ventas1@genlogsac.com  -  +51 946 563 252", W / 2 - 91, 25);
             text(REG, 8, "Página " + numero, RIGHT - 45, 18);
