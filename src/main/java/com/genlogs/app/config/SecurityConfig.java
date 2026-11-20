@@ -36,7 +36,9 @@ public class SecurityConfig {
                 .requestMatchers("/error").permitAll()
                 .requestMatchers("/api/health").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/api/catalogo/**").permitAll()
+                // Catálogo web público (RF-16): solo la lectura de productos visibles en la web.
+                // Antes se liberaba "/api/catalogo/**", ruta que no existe, y /api/productos/web pedía sesión.
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/productos/web").permitAll()
                 .requestMatchers("/api/empresas-mineras/**").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/uploads/**").permitAll()
                 .anyRequest().authenticated()
