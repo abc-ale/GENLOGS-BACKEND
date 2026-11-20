@@ -81,8 +81,9 @@ public class OrdenCompraService {
             throw new BusinessException("Solo se puede generar una orden de compra sobre una cotización APROBADA");
         }
 
-        if (ordenCompraRepository.existsByCotizacion_IdCotizacionAndStatus(cotizacion.getIdCotizacion(), "A")) {
-            throw new BusinessException("Esta cotización ya tiene una orden de compra registrada");
+        // Como máximo una orden no anulada por cotización (RF-33).
+        if (ordenCompraRepository.existeOrdenNoAnulada(cotizacion.getIdCotizacion())) {
+            throw new BusinessException("Esta cotización ya tiene una orden de compra vigente; anúlala para registrar una nueva");
         }
 
         CondicionPago condicionPago = request.getIdCondicionPago() != null
