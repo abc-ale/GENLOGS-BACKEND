@@ -66,7 +66,10 @@ public class CotizacionDocumentoService {
                         .append("  ").append(codigoMoneda(c)).append(' ').append(dinero(l.getImporteLinea())).append('\n');
             }
             texto.append("Subtotal: ").append(codigoMoneda(c)).append(' ').append(dinero(c.getSubtotal())).append('\n')
-                    .append("IGV: ").append(codigoMoneda(c)).append(' ').append(dinero(c.getIgv())).append('\n')
+                    .append("IGV (").append(porcentaje(c.getPorcentajeIgv())).append("): ")
+                    .append(codigoMoneda(c)).append(' ').append(dinero(c.getMontoIgv())).append('\n')
+                    .append("IPM (").append(porcentaje(c.getPorcentajeIpm())).append("): ")
+                    .append(codigoMoneda(c)).append(' ').append(dinero(c.getMontoIpm())).append('\n')
                     .append("TOTAL: ").append(codigoMoneda(c)).append(' ').append(dinero(c.getTotal())).append('\n');
         }
 
@@ -113,5 +116,10 @@ public class CotizacionDocumentoService {
 
     private static String dinero(BigDecimal n) {
         return n == null ? "0.00" : n.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
+    }
+
+    /** 15.50 → "15,5 %". */
+    private static String porcentaje(BigDecimal n) {
+        return n == null ? "—" : n.stripTrailingZeros().toPlainString().replace('.', ',') + " %";
     }
 }

@@ -18,10 +18,17 @@ public class CotizacionResponse {
     private Integer plazoEntregaEstimadoDias;
     private String estado;          // descripción legible del estado
     private String estadoCodigo;    // código del estado, usado por CotizacionDocumentoService
-    // Calculados desde vw_cotizacion_totales (la tabla no guarda el total)
+    // Subtotal desde vw_cotizacion_totales; tributos con la tasa guardada en la cotización (RF-21, RF-37).
     private BigDecimal subtotal;
+    /** Total de tributos (IGV + IPM). Se mantiene el nombre por compatibilidad con el frontend. */
     private BigDecimal igv;
     private BigDecimal total;
+    // Desglose de tributos.
+    private BigDecimal porcentajeIgv;
+    private BigDecimal porcentajeIpm;
+    private BigDecimal tasaTotal;
+    private BigDecimal montoIgv;
+    private BigDecimal montoIpm;
     private String moneda;        // símbolo en BD (S/, $, €)
     private String monedaCodigo;   // código ISO (PEN, USD, EUR)
     private String condicionPago;

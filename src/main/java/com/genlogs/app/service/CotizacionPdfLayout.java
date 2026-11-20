@@ -110,17 +110,26 @@ final class CotizacionPdfLayout {
         p.y = bottom;
     }
 
+    /** 15.50 → "15,5 %". */
+    private static String porcentaje(java.math.BigDecimal valor) {
+        if (valor == null) return "—";
+        return valor.stripTrailingZeros().toPlainString().replace('.', ',') + " %";
+    }
+
     private static void totalesYCondiciones(Pagina p, CotizacionResponse c) throws IOException {
         float top = p.y;
         p.cs.setStrokingColor(35, 45, 58); p.cs.setLineWidth(.55f);
         p.cs.addRect(LEFT, top - 20, TABLE_W, 20); p.cs.stroke();
         p.textRight(BOLD, 9, dinero(c.getSubtotal()), RIGHT - 6, top - 14);
         p.y = top - 34;
-        p.text(BOLD, 11, "TOTAL COTIZACIÓN " + moneda(c) + " " + dinero(c.getSubtotal()) + " + IGV (18%)", LEFT, p.y);
+        // Tributos con la tasa guardada en la cotización y su desglose IGV + IPM (RF-21, RF-37).
+        p.text(BOLD, 11, "TOTAL COTIZACIÓN " + moneda(c) + " " + dinero(c.getSubtotal())
+                + " + tributos (" + porcentaje(c.getTasaTotal()) + ")", LEFT, p.y);
         p.y -= 25;
         detalle(p, "Moneda", moneda(c));
-        detalle(p, "I.G.V. (18%)", moneda(c) + " " + dinero(c.getIgv()));
-        detalle(p, "Total con I.G.V.", moneda(c) + " " + dinero(c.getTotal()));
+        detalle(p, "I.G.V. (" + porcentaje(c.getPorcentajeIgv()) + ")", moneda(c) + " " + dinero(c.getMontoIgv()));
+        detalle(p, "I.P.M. (" + porcentaje(c.getPorcentajeIpm()) + ")", moneda(c) + " " + dinero(c.getMontoIpm()));
+        detalle(p, "Total con tributos", moneda(c) + " " + dinero(c.getTotal()));
         detalle(p, "Validez de la oferta", fechaLarga(c.getFechaValidez()));
         if (c.getPlazoEntregaEstimadoDias() != null) detalle(p, "Plazo de entrega", c.getPlazoEntregaEstimadoDias() + " días (referencial)");
         if (c.getObservaciones() != null && !c.getObservaciones().isBlank()) {

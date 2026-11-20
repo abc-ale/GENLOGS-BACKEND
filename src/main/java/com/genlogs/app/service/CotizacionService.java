@@ -34,6 +34,7 @@ import com.genlogs.app.model.Moneda;
 import com.genlogs.app.model.SectorEconomico;
 import com.genlogs.app.model.SeguimientoCotizacion;
 import com.genlogs.app.model.UnidadMedida;
+import com.genlogs.app.model.TasaIgv;
 import com.genlogs.app.model.Usuario;
 import com.genlogs.app.repository.AdjuntoCotizacionRepository;
 import com.genlogs.app.repository.ClienteRepository;
@@ -72,6 +73,7 @@ public class CotizacionService {
     private final ServicioRepository servicioRepository;
     private final UnidadMedidaRepository unidadMedidaRepository;
     private final AlmacenamientoArchivoService almacenamientoService;
+    private final TasaIgvService tasaIgvService;
 
     @Transactional(readOnly = true)
     public CotizacionResponse buscarPorId(Long idCotizacion) {
@@ -163,6 +165,10 @@ public class CotizacionService {
 
         Usuario vendedor = usuarioActual();
 
+        // RF-37: la cotización guarda la tasa (IGV + IPM) vigente en su fecha.
+        LocalDate fechaCotizacion = LocalDate.now();
+        TasaIgv tasa = tasaIgvService.vigenteEn(fechaCotizacion);
+
         Cotizacion cotizacion = Cotizacion.builder()
                 .cliente(cliente)
                 .contacto(contacto)
@@ -171,8 +177,10 @@ public class CotizacionService {
                 .moneda(moneda)
                 .condicionPago(condicionPago)
                 .sectorEconomico(sector)
-                .fechaCotizacion(LocalDate.now())
-                .fechaValidez(LocalDate.now().plusDays(15))
+                .fechaCotizacion(fechaCotizacion)
+                .fechaValidez(fechaCotizacion.plusDays(15))
+                .porcentajeIgv(tasa.getPorcentajeIgv())
+                .porcentajeIpm(tasa.getPorcentajeIpm())
                 .observaciones(request.getObservaciones())
                 .build();
         cotizacion.setUserCreate(vendedor.getNombreUsuario());
@@ -315,6 +323,10 @@ public class CotizacionService {
         TotalesCotizacionProjection totales = cotizacionRepository
                 .findTotalesByCotizacion(c.getIdCotizacion())
                 .orElse(null);
+        // De la vista solo se toma el subtotal; los tributos usan la tasa guardada (RF-21, RF-37).
+        DesgloseTributos desglose = DesgloseTributos.calcular(
+                totales != null ? totales.getSubtotal() : BigDecimal.ZERO,
+                c.getPorcentajeIgv(), c.getPorcentajeIpm());
 
         return CotizacionResponse.builder()
                 .idCotizacion(c.getIdCotizacion())
@@ -324,9 +336,14 @@ public class CotizacionService {
                 .fechaValidez(c.getFechaValidez())
                 .estado(c.getEstadoCotizacion().getNombreEstado())
                 .estadoCodigo(c.getEstadoCotizacion().getCodigoEstado())
-                .subtotal(totales != null ? totales.getSubtotal() : BigDecimal.ZERO)
-                .igv(totales != null ? totales.getIgv() : BigDecimal.ZERO)
-                .total(totales != null ? totales.getTotal() : BigDecimal.ZERO)
+                .subtotal(desglose.subtotal())
+                .igv(desglose.totalTributos())
+                .total(desglose.total())
+                .porcentajeIgv(desglose.porcentajeIgv())
+                .porcentajeIpm(desglose.porcentajeIpm())
+                .tasaTotal(desglose.tasaTotal())
+                .montoIgv(desglose.montoIgv())
+                .montoIpm(desglose.montoIpm())
                 .moneda(c.getMoneda().getSimbolo())
                 .monedaCodigo(c.getMoneda().getCodigoMoneda() != null ? c.getMoneda().getCodigoMoneda().trim() : null)
                 .condicionPago(c.getCondicionPago().getNombreCondicion())

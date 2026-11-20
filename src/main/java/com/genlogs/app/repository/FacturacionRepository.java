@@ -35,15 +35,27 @@ public interface FacturacionRepository extends JpaRepository<Facturacion, Long> 
                              Pageable pageable);
 
     // --- Soporte para DashboardController ---
-    // La tabla "facturacion" no guarda el total: se calcula en la vista
-    // vw_facturacion_totales (igual que vw_cotizacion_totales para cotizacion).
+    // La tabla "facturacion" no guarda el total. Antes se leía de la vista
+    // vw_facturacion_totales, que aplica un 18 % fijo; ahora cada comprobante usa la
+    // tasa (IGV + IPM) guardada al emitirlo (RF-37), con la misma fórmula que
+    // FacturacionService/DesgloseTributos: suma de líneas redondeadas × (1 + tasa / 100).
+    // No se cuentan los comprobantes ANULADOS.
+    String TOTALES_FACTURACION = "WITH t AS (" +
+            "SELECT f.fecha_emision, " +
+            "ROUND(COALESCE(SUM(ROUND(d.cantidad * (d.precio_unitario - d.descuento_unitario), 2)), 0) " +
+            "* (1 + (f.porcentaje_igv + f.porcentaje_ipm) / 100.0), 2) AS total " +
+            "FROM facturacion f " +
+            "JOIN estado_facturacion e ON e.id_estado_facturacion = f.id_estado_facturacion " +
+            "LEFT JOIN detalle_facturacion d ON d.id_facturacion = f.id_facturacion AND d.status = 'A' " +
+            "WHERE f.status = 'A' AND e.codigo_estado <> 'ANULADA' " +
+            "GROUP BY f.id_facturacion, f.fecha_emision, f.porcentaje_igv, f.porcentaje_ipm) ";
 
-    @Query(value = "SELECT COALESCE(SUM(total), 0) FROM vw_facturacion_totales " +
+    @Query(value = TOTALES_FACTURACION + "SELECT COALESCE(SUM(total), 0) FROM t " +
             "WHERE (CAST(:desde AS date) IS NULL OR fecha_emision >= :desde) " +
             "AND (CAST(:hasta AS date) IS NULL OR fecha_emision <= :hasta)", nativeQuery = true)
     BigDecimal sumTotalFacturado(@Param("desde") LocalDate desde, @Param("hasta") LocalDate hasta);
 
-    @Query(value = "SELECT COALESCE(SUM(total), 0) FROM vw_facturacion_totales " +
+    @Query(value = TOTALES_FACTURACION + "SELECT COALESCE(SUM(total), 0) FROM t " +
             "WHERE date_trunc('month', fecha_emision) = date_trunc('month', CAST(:fecha AS date))",
             nativeQuery = true)
     BigDecimal sumTotalFacturadoDelMes(@Param("fecha") LocalDate fecha);
@@ -53,24 +65,24 @@ public interface FacturacionRepository extends JpaRepository<Facturacion, Long> 
         BigDecimal getMonto();
     }
 
-    @Query(value = "SELECT to_char(date_trunc('month', fecha_emision), 'YYYY-MM') AS periodo, " +
+    @Query(value = TOTALES_FACTURACION + "SELECT to_char(date_trunc('month', fecha_emision), 'YYYY-MM') AS periodo, " +
             "COALESCE(SUM(total), 0) AS monto " +
-            "FROM vw_facturacion_totales WHERE fecha_emision >= :desde " +
+            "FROM t WHERE fecha_emision >= :desde " +
             "GROUP BY date_trunc('month', fecha_emision) " +
             "ORDER BY date_trunc('month', fecha_emision)", nativeQuery = true)
     List<PeriodoMontoProjection> sumMensualDesde(@Param("desde") LocalDate desde);
 
-    @Query(value = "SELECT to_char(date_trunc('quarter', fecha_emision), 'YYYY') || '-Q' || " +
+    @Query(value = TOTALES_FACTURACION + "SELECT to_char(date_trunc('quarter', fecha_emision), 'YYYY') || '-Q' || " +
             "to_char(date_trunc('quarter', fecha_emision), 'Q') AS periodo, " +
             "COALESCE(SUM(total), 0) AS monto " +
-            "FROM vw_facturacion_totales WHERE fecha_emision >= :desde " +
+            "FROM t WHERE fecha_emision >= :desde " +
             "GROUP BY date_trunc('quarter', fecha_emision) " +
             "ORDER BY date_trunc('quarter', fecha_emision)", nativeQuery = true)
     List<PeriodoMontoProjection> sumTrimestralDesde(@Param("desde") LocalDate desde);
 
-    @Query(value = "SELECT to_char(date_trunc('year', fecha_emision), 'YYYY') AS periodo, " +
+    @Query(value = TOTALES_FACTURACION + "SELECT to_char(date_trunc('year', fecha_emision), 'YYYY') AS periodo, " +
             "COALESCE(SUM(total), 0) AS monto " +
-            "FROM vw_facturacion_totales WHERE fecha_emision >= :desde " +
+            "FROM t WHERE fecha_emision >= :desde " +
             "GROUP BY date_trunc('year', fecha_emision) " +
             "ORDER BY date_trunc('year', fecha_emision)", nativeQuery = true)
     List<PeriodoMontoProjection> sumAnualDesde(@Param("desde") LocalDate desde);

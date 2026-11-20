@@ -64,6 +64,14 @@ public class Facturacion extends Auditable {
     @Builder.Default
     private LocalDate fechaVencimiento = LocalDate.now().plusDays(30);
     
+    /** IGV con que se emitió el comprobante (tasa vigente en su fecha de emisión, RF-37). */
+    @Column(name = "porcentaje_igv", nullable = false, precision = 5, scale = 2)
+    private BigDecimal porcentajeIgv;
+
+    /** IPM con que se emitió el comprobante (tasa vigente en su fecha de emisión, RF-37). */
+    @Column(name = "porcentaje_ipm", nullable = false, precision = 5, scale = 2)
+    private BigDecimal porcentajeIpm;
+
     @Column(name = "monto_pagado", nullable = false, precision = 16, scale = 2)
     @Builder.Default
     private BigDecimal montoPagado = BigDecimal.ZERO;
