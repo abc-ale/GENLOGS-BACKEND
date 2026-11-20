@@ -7,6 +7,7 @@ import com.genlogs.app.exception.BusinessException;
 import com.genlogs.app.model.Usuario;
 import com.genlogs.app.repository.UsuarioRepository;
 import com.genlogs.app.security.JwtUtil;
+import com.genlogs.app.security.Roles;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
@@ -90,7 +91,7 @@ public class AuthService {
         UserDetails userDetails = org.springframework.security.core.userdetails.User.builder()
                 .username(usuario.getNombreUsuario())
                 .password(usuario.getPasswordHash())
-                .authorities("ROLE_" + usuario.getRol().getNombreRol().toUpperCase())
+                .authorities(Roles.authority(usuario.getRol().getNombreRol()))
                 .build();
 
         String token = jwtUtil.generarToken(userDetails);

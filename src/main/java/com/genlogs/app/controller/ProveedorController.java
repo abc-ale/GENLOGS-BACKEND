@@ -19,7 +19,6 @@ public class ProveedorController {
     private final ProveedorService proveedorService;
 
     @PostMapping
-    // @PreAuthorize("hasAnyRole('ADMINISTRADOR','VENDEDOR')") // lo agrega Luana con MethodSecurityConfig
     public ResponseEntity<ProveedorResponse> registrar(@Valid @RequestBody ProveedorRequest request) {
         ProveedorResponse proveedor = proveedorService.registrar(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(proveedor);

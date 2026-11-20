@@ -10,7 +10,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -31,7 +30,6 @@ import com.genlogs.app.dto.EnviarCotizacionRequest;
 import com.genlogs.app.dto.EnvioCotizacionResponse;
 import com.genlogs.app.dto.PaginaResponse;
 import com.genlogs.app.dto.SeguimientoCotizacionResponse;
-import com.genlogs.app.security.Roles;
 import com.genlogs.app.service.CotizacionDocumentoService;
 import com.genlogs.app.service.CotizacionService;
 
@@ -118,7 +116,6 @@ public class CotizacionController {
     }
 
     @PostMapping("/{id}/enviar")
-    @PreAuthorize(Roles.COMERCIAL)
     public ResponseEntity<EnvioCotizacionResponse> enviar(
             @PathVariable Long id, @Valid @RequestBody EnviarCotizacionRequest request) {
         return ResponseEntity.ok(cotizacionDocumentoService.enviar(id, request));

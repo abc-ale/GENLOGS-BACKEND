@@ -1,6 +1,5 @@
 package com.genlogs.app.controller;
 
-import com.genlogs.app.security.Roles;
 import com.genlogs.app.dto.ClienteRequest;
 import com.genlogs.app.dto.ClienteResponse;
 import com.genlogs.app.service.ClienteService;
@@ -8,7 +7,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,14 +19,12 @@ public class ClienteController {
     private final ClienteService clienteService;
 
     @PostMapping
-    // @PreAuthorize("hasAnyRole('ADMINISTRADOR','VENDEDOR')") // lo agrega Luana con MethodSecurityConfig
     public ResponseEntity<ClienteResponse> registrar(@Valid @RequestBody ClienteRequest request) {
         ClienteResponse response = clienteService.registrar(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PutMapping("/{idCliente}")
-    @PreAuthorize(Roles.COMERCIAL)
     public ResponseEntity<ClienteResponse> actualizar(
             @PathVariable Long idCliente, @Valid @RequestBody ClienteRequest request) {
         return ResponseEntity.ok(clienteService.actualizar(idCliente, request));

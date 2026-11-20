@@ -26,7 +26,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/usuarios")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMINISTRADOR')")
+@PreAuthorize("hasRole('JEFE_ADMINISTRATIVO')") // CU-03 Gestionar usuarios
 public class UsuarioController {
 
     private final UsuarioService usuarioService;
