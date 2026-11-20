@@ -14,7 +14,15 @@ import com.genlogs.app.model.OrdenCompra;
 public interface OrdenCompraRepository extends JpaRepository<OrdenCompra, Long> {
     Optional<OrdenCompra> findByNumeroOrdenCompra(String numeroOrdenCompra);
 
-    boolean existsByCotizacion_IdCotizacionAndStatus(Long idCotizacion, String status);
+    /**
+     * RF-33: ¿la cotización ya tiene una orden vigente? Cuenta solo las órdenes activas
+     * (status 'A') que no estén en estado ANULADA; una orden anulada no bloquea un nuevo registro.
+     */
+    @Query("SELECT COUNT(oc) > 0 FROM OrdenCompra oc "
+            + "WHERE oc.cotizacion.idCotizacion = :idCotizacion "
+            + "AND oc.status = 'A' "
+            + "AND oc.estadoOrdenCompra.codigoEstado <> 'ANULADA'")
+    boolean existeOrdenNoAnulada(@Param("idCotizacion") Long idCotizacion);
 
     @Query("SELECT oc FROM OrdenCompra oc WHERE oc.cotizacion.cliente.idCliente = :idCliente AND oc.status = 'A' ORDER BY oc.fechaRecepcion DESC")
     List<OrdenCompra> findByCliente(@Param("idCliente") Long idCliente);
