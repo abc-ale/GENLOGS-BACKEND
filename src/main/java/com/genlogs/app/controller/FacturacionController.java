@@ -2,7 +2,10 @@ package com.genlogs.app.controller;
 
 import java.util.List;
 
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -19,6 +22,7 @@ import com.genlogs.app.dto.FacturacionRequest;
 import com.genlogs.app.dto.FacturacionResponse;
 import com.genlogs.app.dto.PaginaResponse;
 import com.genlogs.app.dto.RegistrarPagoRequest;
+import com.genlogs.app.service.FacturacionDocumentoService;
 import com.genlogs.app.service.FacturacionService;
 
 import jakarta.validation.Valid;
@@ -30,6 +34,7 @@ import lombok.RequiredArgsConstructor;
 public class FacturacionController {
 
     private final FacturacionService facturacionService;
+    private final FacturacionDocumentoService facturacionDocumentoService;
 
     @GetMapping
     public ResponseEntity<PaginaResponse<FacturacionResponse>> listar(
@@ -59,6 +64,16 @@ public class FacturacionController {
     @GetMapping("/{id}/detalle")
     public ResponseEntity<List<DetalleFacturacionResponse>> listarDetalle(@PathVariable Long id) {
         return ResponseEntity.ok(facturacionService.listarDetalle(id));
+    }
+
+    /** PDF del comprobante con su detalle, desglose IGV + IPM y estado de cobranza. */
+    @GetMapping("/{id}/pdf")
+    public ResponseEntity<byte[]> descargarPdf(@PathVariable Long id) {
+        FacturacionDocumentoService.PdfFacturacion pdf = facturacionDocumentoService.generarPdf(id);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentDisposition(ContentDisposition.attachment().filename(pdf.nombreArchivo()).build());
+        return ResponseEntity.ok().headers(headers).body(pdf.contenido());
     }
 
     @PostMapping
