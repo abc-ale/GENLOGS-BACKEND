@@ -29,6 +29,7 @@ import com.genlogs.app.model.Facturacion;
 import com.genlogs.app.model.Moneda;
 import com.genlogs.app.model.OrdenCompra;
 import com.genlogs.app.model.TipoComprobante;
+import com.genlogs.app.model.TasaIgv;
 import com.genlogs.app.model.Usuario;
 import com.genlogs.app.repository.CondicionPagoRepository;
 import com.genlogs.app.repository.DetalleFacturacionRepository;
@@ -57,6 +58,7 @@ public class FacturacionService {
     private final ProductoRepository productoRepository;
     private final ServicioRepository servicioRepository;
     private final UsuarioRepository usuarioRepository;
+    private final TasaIgvService tasaIgvService;
 
     @Transactional(readOnly = true)
     public PaginaResponse<FacturacionResponse> listar(String estadoCodigo, String tipoCodigo, Long idOrdenCompra,
@@ -122,6 +124,10 @@ public class FacturacionService {
 
         Usuario usuario = usuarioActual();
 
+        // RF-37: el comprobante guarda la tasa (IGV + IPM) vigente en su fecha de emisión.
+        LocalDate fechaEmision = request.getFechaEmision() != null ? request.getFechaEmision() : LocalDate.now();
+        TasaIgv tasa = tasaIgvService.vigenteEn(fechaEmision);
+
         Facturacion facturacion = Facturacion.builder()
                 .ordenCompra(ordenCompra)
                 .tipoComprobante(tipoComprobante)
@@ -130,7 +136,9 @@ public class FacturacionService {
                 .moneda(moneda)
                 .serieComprobante(request.getSerieComprobante())
                 .numeroComprobante(request.getNumeroComprobante())
-                .fechaEmision(request.getFechaEmision() != null ? request.getFechaEmision() : LocalDate.now())
+                .fechaEmision(fechaEmision)
+                .porcentajeIgv(tasa.getPorcentajeIgv())
+                .porcentajeIpm(tasa.getPorcentajeIpm())
                 .fechaVencimiento(request.getFechaVencimiento() != null
                         ? request.getFechaVencimiento()
                         : LocalDate.now().plusDays(condicionPago.getDiasCredito() != null ? condicionPago.getDiasCredito() : 0))
@@ -171,7 +179,7 @@ public class FacturacionService {
     public FacturacionResponse registrarPago(Long idFacturacion, RegistrarPagoRequest request) {
         Facturacion facturacion = obtenerOLanzar(idFacturacion);
 
-        BigDecimal total = calcularTotal(facturacion.getIdFacturacion());
+        BigDecimal total = calcularDesglose(facturacion).total();
         BigDecimal nuevoPagado = facturacion.getMontoPagado().add(request.getMontoPagado());
 
         if (nuevoPagado.compareTo(total) > 0) {
@@ -222,8 +230,6 @@ public class FacturacionService {
         return linea;
     }
 
-    private static final BigDecimal FACTOR_IGV = new BigDecimal("1.18");
-
     /** Suma cada línea con la misma fórmula del GENERATED de la BD (sin IGV). */
     private BigDecimal calcularSubtotal(Long idFacturacion) {
         return detalleFacturacionRepository.findByFacturacion(idFacturacion).stream()
@@ -234,11 +240,12 @@ public class FacturacionService {
     }
 
     /**
-     * Total con IGV 18%, igual que vw_facturacion_totales.total
-     * (la tabla "facturacion" no guarda el total, solo monto_pagado).
+     * Subtotal, IGV, IPM y total con la tasa guardada en el comprobante (RF-37).
+     * La tabla "facturacion" no guarda el total, solo monto_pagado.
      */
-    private BigDecimal calcularTotal(Long idFacturacion) {
-        return calcularSubtotal(idFacturacion).multiply(FACTOR_IGV).setScale(2, RoundingMode.HALF_UP);
+    private DesgloseTributos calcularDesglose(Facturacion f) {
+        return DesgloseTributos.calcular(
+                calcularSubtotal(f.getIdFacturacion()), f.getPorcentajeIgv(), f.getPorcentajeIpm());
     }
 
     private void actualizarAuditoria(Facturacion facturacion, String proceso) {
@@ -260,7 +267,8 @@ public class FacturacionService {
     }
 
     private FacturacionResponse toResponse(Facturacion f) {
-        BigDecimal total = calcularTotal(f.getIdFacturacion());
+        DesgloseTributos desglose = calcularDesglose(f);
+        BigDecimal total = desglose.total();
         return FacturacionResponse.builder()
                 .idFacturacion(f.getIdFacturacion())
                 .idOrdenCompra(f.getOrdenCompra().getIdOrdenCompra())
@@ -273,6 +281,13 @@ public class FacturacionService {
                 .clienteRazonSocial(f.getOrdenCompra().getCotizacion().getCliente().getTercero().getRazonSocial())
                 .fechaEmision(f.getFechaEmision())
                 .fechaVencimiento(f.getFechaVencimiento())
+                .subtotal(desglose.subtotal())
+                .igv(desglose.totalTributos())
+                .porcentajeIgv(desglose.porcentajeIgv())
+                .porcentajeIpm(desglose.porcentajeIpm())
+                .tasaTotal(desglose.tasaTotal())
+                .montoIgv(desglose.montoIgv())
+                .montoIpm(desglose.montoIpm())
                 .total(total)
                 .montoPagado(f.getMontoPagado())
                 .saldoPendiente(total.subtract(f.getMontoPagado()))

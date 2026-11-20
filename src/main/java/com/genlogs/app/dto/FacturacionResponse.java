@@ -21,6 +21,15 @@ public class FacturacionResponse {
     private String clienteRazonSocial;
     private LocalDate fechaEmision;
     private LocalDate fechaVencimiento;
+    // Desglose de tributos con la tasa guardada en el comprobante (RF-37).
+    private BigDecimal subtotal;
+    /** Total de tributos (IGV + IPM), mismo criterio que CotizacionResponse.igv. */
+    private BigDecimal igv;
+    private BigDecimal porcentajeIgv;
+    private BigDecimal porcentajeIpm;
+    private BigDecimal tasaTotal;
+    private BigDecimal montoIgv;
+    private BigDecimal montoIpm;
     private BigDecimal total;
     private BigDecimal montoPagado;
     private BigDecimal saldoPendiente;

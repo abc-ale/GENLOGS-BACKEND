@@ -1,5 +1,6 @@
 package com.genlogs.app.model;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 import jakarta.persistence.Column;
@@ -67,10 +68,17 @@ public class Cotizacion extends Auditable {
     @JoinColumn(name = "id_sector_economico", nullable = false)
     private SectorEconomico sectorEconomico;
 
-    // [ALINEADO A BD V8] La tabla "cotizacion" NO tiene columna "total":
-    // los totales (subtotal, IGV 18%, total) se calculan en la vista
-    // vw_cotizacion_totales a partir de cotizacion_detalle.importe_linea.
-    // Ver CotizacionRepository.findTotalesByCotizacion(...).
+    // La tabla "cotizacion" NO tiene columna "total": el subtotal sale de la vista
+    // vw_cotizacion_totales (suma de cotizacion_detalle.importe_linea) y los tributos se
+    // calculan con los porcentajes guardados abajo (ver DesgloseTributos, RF-21).
+
+    /** IGV con que se creó la cotización (tasa vigente en su fecha, RF-37). */
+    @Column(name = "porcentaje_igv", nullable = false, precision = 5, scale = 2)
+    private BigDecimal porcentajeIgv;
+
+    /** IPM con que se creó la cotización (tasa vigente en su fecha, RF-37). */
+    @Column(name = "porcentaje_ipm", nullable = false, precision = 5, scale = 2)
+    private BigDecimal porcentajeIpm;
 
     @Column(name = "observaciones", columnDefinition = "TEXT")
     private String observaciones;
