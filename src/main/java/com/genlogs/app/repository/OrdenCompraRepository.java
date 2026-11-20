@@ -14,6 +14,9 @@ import com.genlogs.app.model.OrdenCompra;
 public interface OrdenCompraRepository extends JpaRepository<OrdenCompra, Long> {
     Optional<OrdenCompra> findByNumeroOrdenCompra(String numeroOrdenCompra);
 
+    /** ¿Ya hay una orden activa con ese número? (la búsqueda por número espera un único resultado). */
+    boolean existsByNumeroOrdenCompraAndStatus(String numeroOrdenCompra, String status);
+
     /**
      * RF-33: ¿la cotización ya tiene una orden vigente? Cuenta solo las órdenes activas
      * (status 'A') que no estén en estado ANULADA; una orden anulada no bloquea un nuevo registro.
